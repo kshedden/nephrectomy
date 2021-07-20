@@ -15,43 +15,6 @@ paf = ["Tissue", "Capsule", "CMJ"]
 # If mode is 1, collapse all atypical glmo types into one category.
 mode = 0
 
-colors = Dict{String,String}(
-    "All Glomeruli" => "grey",
-    "FGGS" => "blue",
-    "FSGS" => "magenta",
-    "BSPC" => "green",
-    "Ischemic" => "cyan",
-    "Normal" => "black",
-    "Imploding" => "red",
-    "Capsule" => "purple",
-    "CMJ" => "orange",
-    "Tissue" => "yellow",
-    "Atypical" => "blue",
-)
-
-
-function condense(a)
-
-    b = Dict{String,Array{Array{Float64,2},1}}()
-    b["All Glomeruli"] = a["All Glomeruli"]
-    b["Atypical"] = Float64[]
-    for x in ["All Glomeruli", "Tissue", "Capsule", "CMJ"]
-        if !haskey(b, x)
-            b[x] = Float64[]
-        end
-        if haskey(a, x)
-            push!(b[x], a[x]...)
-        end
-    end
-    for x in ["FSGS", "FGGS", "Ischemic", "Imploding"]
-        if haskey(a, x)
-            push!(b["Atypical"], a[x]...)
-        end
-    end
-
-    return b
-
-end
 
 function plot_all()
 

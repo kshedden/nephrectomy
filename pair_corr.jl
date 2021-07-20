@@ -1,4 +1,4 @@
-using PyPlot, Statistics, Printf, SpecialFunctions, DataFrames, IterTools
+using PyPlot, Statistics, Printf, DataFrames, IterTools
 
 include("defs.jl")
 include("pair_corr_utils.jl")
@@ -16,7 +16,7 @@ smry = Dict{String,Array{Int,1}}()
 # Loop over all samples
 for fn in fi
 
-    println(fn)
+	println(fn)
     a = read_annot(fn)
 
     for q in ptq
@@ -109,7 +109,7 @@ c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=pair_corr.pdf $
 run(c)
 
 ss = DataFrame(smry)
-ss["Samples"] = [">=1", ">=3", ">=5"]
+ss[!, "Samples"] = [">=1", ">=3", ">=5"]
 open("summary.txt", "w") do io
     write(io, string(ss))
 end
