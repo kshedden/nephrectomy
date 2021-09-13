@@ -1,4 +1,4 @@
-using PyPlot, Statistics, Printf, DataFrames, LinearAlgebra, GeometricalPredicates
+using PyPlot, Statistics, Printf, DataFrames, LinearAlgebra, GeometricalPredicates, CSV
 
 # 0.25 microns/pixel = 4 pixels/micron
 # length = 1.2 cm * 10000 micron / cm * 4 pixels / micron = 48000 pixels  
@@ -53,7 +53,8 @@ function getpoly(zz::Vector{Float64}, zt::Vector{Float64}, zd::Vector{Float64}, 
 	return xy
 end
 
-# Count the number of glomeruli that are inside the needle
+# Count the number of glomeruli that are inside the needle, and the total number
+# of gloms in the section.
 function capture(needle, gloms)
 
 	po = Polygon(Point(needle[1,1], needle[1,2]), Point(needle[2,1], needle[2,2]), 
@@ -77,21 +78,21 @@ function make_plot(fn, a, ixp)
 
 	# Get centroid of all glomeruli
 	ctr = [0.0, 0.0]
-	ag = a["All Glomeruli"]
-	agp = zeros(2, length(ag))
-	for (i,g) in enumerate(ag)
+	agl = a["All Glomeruli"]
+	gloms = zeros(2, length(agl))
+	for (i,g) in enumerate(agl)
 		m = mean(g, dims=2)
 		ctr += m
-		agp[:, i] = m
+		gloms[:, i] = m
 	end
-	ctr = ctr ./ length(ag)
+	ctr = ctr ./ length(agl)
 
 	# Get centroids of atypical gloms
-	atg = a["Atypical"]
-	atgp = zeros(2, length(atg))
-	for (i,g) in enumerate(atg)
+	xgl = a["Atypical"]
+	atp_gloms = zeros(2, length(xgl))
+	for (i,g) in enumerate(xgl)
 		m = mean(g, dims=2)
-		atgp[:, i] = m
+		atp_gloms[:, i] = m
 	end
 
 	PyPlot.clf()
@@ -134,12 +135,16 @@ function make_plot(fn, a, ixp)
 			zd = (cos(a)*zn + sin(a)*zt)[:,1]
 
 			# Allow the needle to enter occasionally
-			if i%100 == 1
+			if i%50 == 1
 				xy = zeros(4, 2)
 				getpoly(zz, zt, zd, xy)
-				n_agp, t_agp = capture(xy, agp)
-				n_atgp, t_atgp = capture(xy, atgp)
-				push!(counts, [n_agp, t_agp, n_atgp, t_atgp])
+				n_glom, t_glom = capture(xy, gloms)
+				n_atp_glom, t_atp_glom = capture(xy, atp_gloms)
+
+				# Require at least 20 gloms in the biopsy.
+				if n_glom >= 10
+					push!(counts, [n_glom, t_glom, n_atp_glom, t_atp_glom])
+				end
 
 				if i % 500 == 1			
 					pa = PyPlot.matplotlib.patches.Polygon(xy, fill=true, edgecolor="grey", facecolor="lightgrey")
@@ -155,13 +160,13 @@ function make_plot(fn, a, ixp)
 	end
 
 	# Plot all glomeruli
-	for j in 1:size(agp, 2)
-		PyPlot.plot(agp[1, j], agp[2, j], "o", color="grey", mfc="none")
+	for j in 1:size(gloms, 2)
+		PyPlot.plot(gloms[1, j], gloms[2, j], "o", color="grey", mfc="none")
 	end
 
 	# Plot the atypical glomeruli
-	for j in 1:size(atgp, 2)
-		PyPlot.plot(atgp[1, j], atgp[2, j], "o", color="red", mfc="none")
+	for j in 1:size(atp_gloms, 2)
+		PyPlot.plot(atp_gloms[1, j], atp_gloms[2, j], "o", color="red", mfc="none")
 	end
 
 	PyPlot.savefig(@sprintf("plots/%03d.pdf", ixp))
@@ -171,7 +176,7 @@ end
 
 function do_all()
 
-	counts = []
+	counts, src = [], []
     ixp = 0
     for fn in fi
 
@@ -187,20 +192,32 @@ function do_all()
 	    counts1, ixp = make_plot(fn, a, ixp)
 		push!(counts, counts1...)
 
+		ti = replace(fn, ".xml"=>"")
+		ti = parse(Int, ti)
+		for _ in 1:length(counts1)
+			push!(src, ti)
+		end
     end
 
-	counts = hcat(counts...)
+	cnt = hcat(counts...)
+	cnt = DataFrame(:n_glom=>cnt[1,:], :t_glom=>cnt[2,:], :n_xglom=>cnt[3,:], :t_xglom=>cnt[4,:],
+	                :src=>src)
 
-    return tuple(counts, ixp)
+	cnt[:, :src] = Array{Int64}(cnt[:, :src])
+	cnt = sort(cnt, :src)
+
+    return tuple(cnt, ixp)
 end
 
-counts, ixp = do_all()
+cnt, ixp = do_all()
+
+CSV.write("counts.csv", cnt)
 
 # Scatterplot the number of glomeruli detected by the biopsy against the total
 # number of glomeruli in the nephrectomy sample
 PyPlot.clf()
 PyPlot.grid(true)
-PyPlot.plot(counts[2, :], counts[1, :], "o", mfc="none", alpha=0.8)
+PyPlot.plot(cnt[:, :t_glom], cnt[:, :n_glom], "o", mfc="none", alpha=0.8)
 PyPlot.ylabel("Biopsied glomeruli", size=15)
 PyPlot.xlabel("Total glomeruli", size=15)
 PyPlot.savefig("all_gloms.pdf")
@@ -208,7 +225,7 @@ PyPlot.savefig("all_gloms.pdf")
 # Same as above, except using only atypical glmoeruli
 PyPlot.clf()
 PyPlot.grid(true)
-PyPlot.plot(counts[4, :], counts[3, :], "o", mfc="none", alpha=0.8)
+PyPlot.plot(cnt[:, :n_xglom], cnt[:, :t_xglom], "o", mfc="none", alpha=0.8)
 PyPlot.ylabel("Biopsied atypical glomeruli", size=15)
 PyPlot.xlabel("Total atypical glomeruli", size=15)
 PyPlot.savefig("atypical_gloms.pdf")

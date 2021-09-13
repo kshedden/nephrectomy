@@ -1,11 +1,21 @@
 using GZip, CSV, DataFrames
 
-df = GZip.open("clinical_var.csv.gz") do io
+df1 = GZip.open("/home/kshedden/data/Markus_Bitzer/clinical_var.csv.gz") do io
     CSV.read(io, DataFrame)
 end
 
+df2 = GZip.open("/home/kshedden/data/Markus_Bitzer/nephrectomy_characteristics.csv.gz") do io
+    CSV.read(io, DataFrame)
+end
+	
 # The TCP id's mix hyphens and underscores, so standardize to use underscores.
-df[!, :TCP_ID] = [replace(x, "-"=>"_") for x in df[:, :TCP_ID]]
+df1[!, :TCP_ID] = [replace(x, "-"=>"_") for x in df1[:, :TCP_ID]]
+df2[!, :TCP_id] = [replace(x, "-"=>"_") for x in df2[:, :TCP_id]]
+
+df = outerjoin(df1, df2, on=:TCP_ID=>:TCP_id)
+
+df[:, :Female] = [!ismissing(x) && x == "F" ? 1 : 0 for x in df[:, :SEX]]
+df[:, :NonWhite] = [!ismissing(x) && x != "White or Caucasian" ? 1 : 0 for x in df[:, :RACE]]
 
 # Map between id's used in the clinical and annotation files
 # idm maps TCP ID to Scanner ID

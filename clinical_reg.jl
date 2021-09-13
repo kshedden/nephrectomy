@@ -1,4 +1,4 @@
-using GZip, CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots, Printf, PyPlot
+using GZip, CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots, Printf, PyPlot, Distributions
 
 rm("plots", force=true, recursive=true)
 mkdir("plots")
@@ -10,31 +10,39 @@ include("clinical_utils.jl")
 # Pairwise correlation quantiles
 idpcq, pcq = get_normalized_paircorr()
 
-
 function analyze(vname, ifig, out)
 
     y, x = get_response(vname, idpcq, pcq)
 
-    # PCA
-    for j in 1:size(x, 2)
-        x[:, j] .-= mean(x[:, j])
-    end
-    u,s,v = svd(x)
-
-	for j in 1:3
-		if sum(v[:,j] .< 0) > sum(v[:,j] .> 0)
-		    v[:, j] = -v[:, j]
-		    u[:, j] = -u[:, j]
-		end
+	for j in 1:size(x,2)
+	    x[:, j] = x[:, j] .- mean(x[:, j])
 	end
+	y = (y .- mean(y)) ./ std(y)
 
-    # Check to see if the PC scores are correlated with
-    # the clinical trait.
-    c = Float64[]
-    c = push!(c, length(y))
-    for j in 1:3
-    	push!(c, cor(y, u[:, j]))
-    end
+	u, s, v = svd(x)
+	sd = std(u[:, 1])
+
+	p = size(x, 2)
+	F = zeros(p-2, p)
+	for i in 1:p-2
+	    F[i, i:i+2] = [1, -2, 1]
+	end
+	G = F' * F
+
+	println(vname)
+	bl = []
+	for la in [0.1, 1.0, 10., 100.]
+        pm = x'*x + la*G
+	    b = pm \ (x' * y)
+	    push!(bl, b)
+	    yh = x * b
+	    sig2 = mean((yh - y).^2)
+	    cm = sig2 * (pm \ (x' * x) / pm)
+	    cs = b' * (cm \ b)
+	    pv = 1 - cdf(Chisq(20), cs)
+    	r = cor(yh, y)
+    	write(out, @sprintf("%s,%.2f,%.3f,%.3f\n", vname, la, pv, r))
+	end
 
     # Plot the PC loading vector
 	PyPlot.clf()
@@ -42,26 +50,21 @@ function analyze(vname, ifig, out)
 	PyPlot.grid(true)
 	pr = collect(range(0, 1, length=size(v, 1)))
 	pr = pr ./ maximum(pr)
-	for j in 1:3
-		PyPlot.plot(pr, v[:, j], label=@sprintf("%d", j))
+	cm = PyPlot.cm.get_cmap("jet")
+	for (j,b) in enumerate(bl)
+	    col = cm(j/(length(bl)+1))
+    	PyPlot.plot(pr, b, "-", color=col)
     end
-    ha, lb = PyPlot.gca().get_legend_handles_labels()
-    leg = PyPlot.figlegend(ha, lb, "center right")
-    leg.draw_frame(false)
     PyPlot.title(vname)
 	PyPlot.xlabel("Probability point", size=15)
-	PyPlot.ylabel("Loading", size=15)
+	PyPlot.ylabel("Coefficient", size=15)
 	PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
 	ifig += 1
-
-	println(c)
-	write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, c...))
 
 	return ifig
 
 end
 
-# Variables to analyze
 avn = [:Female, :NonWhite, :age, :htn_code_pre, :dm_code_pre, :bmi, :htn_sbp, :htn,
        :dm_lab_pre, :dm, :bl_cr_prenx, :bl_egfr_prenx, :bl_ckd_prenx, :kdigo,
        :"Hyper-Bin", :"T2D-Bin", :"eGFR Min4 Mean", :"I/L Ratio", :">100%", :">50%",
@@ -72,8 +75,8 @@ avn = [:Female, :NonWhite, :age, :htn_code_pre, :dm_code_pre, :bmi, :htn_sbp, :h
 
 function main()
     ifig = 0
-    out = open("clinical_results.csv", "w")
-    write(out, "Variable,N,R1,R2,R3\n")
+    out = open("clinical_reg_results.csv", "w")
+    write(out, "Variable,Lambda,P-value,Correlation\n")
     for av in avn
 	    ifig = analyze(av, ifig, out)
     end
@@ -84,5 +87,5 @@ end
 ifig = main()
 
 f = [@sprintf("plots/%03d.pdf", j) for j in 0:ifig-1]
-c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_loadings.pdf $f`
+c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_reg.pdf $f`
 run(c)

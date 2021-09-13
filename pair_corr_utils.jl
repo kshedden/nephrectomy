@@ -8,7 +8,10 @@ function pair_corr(a; use::Array{String,1}=[])
 
     dit = Dict{Tuple{String,String},Array{Float64,1}}()
 
-    ptp = [x for x in keys(a) if x in use]
+	ptp = collect(keys(a))
+	if length(use) > 0
+	    ptp = [x for x in ptp if x in use]
+	end
 
     # Loop over all distinct pairs of types
     m = length(ptp)
@@ -75,4 +78,90 @@ function pair_corr(a; use::Array{String,1}=[])
 
     return dit
 
+end
+
+# Get the normalized pairwise distance quantiles.
+function get_normalized_paircorr()
+
+    # We are interested in the pairwise distances between these
+    # two types
+    k1 = ("Atypical", "Atypical")
+
+    # Normalize to the pairwise distances between these two types
+    k2 = ("All Glomeruli", "All Glomeruli")
+
+    pc = Dict{String,Array{Float64,1}}()
+    x, idx = [], []
+    for fn in fi
+
+        # Get the scanner ID from the file name
+        fni = replace(fn, ".xml"=>"")
+        fni = parse(Int, fni)
+
+        # Skip if we can't match this scanner id to a
+        # TCP id.
+        if !haskey(idmr, fni)
+            continue
+        end
+
+        println(fn)
+        a = read_annot(fn)
+
+        b = Dict{String,Array{Array{Float64,2},1}}()
+        b["All Glomeruli"] = a["All Glomeruli"]
+        b["Atypical"] = Array{Float64,1}()
+        for x in ["FGGS", "Ischemic", "FGGS", "Imploding"]
+            if haskey(a, x)
+                push!(b["Atypical"], a[x]...)
+            end
+        end
+
+        dit = pair_corr(b, use=["All Glomeruli", "Atypical"])
+
+        if (length(dit[k1]) == 0) || (length(dit[k2]) == 0)
+            continue
+        end
+
+        push!(idx, fni)
+        push!(x, log.(dit[k1] ./ dit[k2]))
+
+    end
+
+    x = hcat(x...)'
+
+    return tuple(idx, x)
+
+end
+
+# Return a phenotype vector y for variable 'vname', and the corresponding
+# array of normalized distance quantiles.
+function get_response(vname, idpcq, pcq)
+
+    xm = Dict{String,Float64}()
+    for (i, r) in enumerate(eachrow(df))
+        if !ismissing(r[vname])
+            xm[r.TCP_ID] = r[vname]
+        end
+    end
+
+    # Keep track of the subject that cannot be matched.
+    out = open("nomatch.csv", "w")
+
+    y = Union{Float64,Missing}[]
+    for id in idpcq
+        if haskey(tcp_rownum, idmr[id])
+            ri = tcp_rownum[idmr[id]]
+            push!(y, df[ri, vname])
+        else
+            write(out, @sprintf("%s,%s\n", id, idmr[id]))
+            push!(y, missing)
+        end
+    end
+
+    close(out)
+
+    ii = [i for (i,v) in enumerate(y) if !ismissing(v)]
+	y = Array{Float64}(y[ii])
+	x = Array{Float64,2}(pcq[ii, :])
+    return (y, x)
 end
