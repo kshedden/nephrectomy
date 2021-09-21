@@ -44,10 +44,24 @@ function plot_all()
             if k in paf
                 for (j, u) in enumerate(v)
                     if j == 1
-                        PyPlot.plot(u[1, :], u[2, :], "-", label = k, color = colors[k],
-                                    alpha=0.5, zorder=1)
+                        PyPlot.plot(
+                            u[1, :],
+                            u[2, :],
+                            "-",
+                            label = k,
+                            color = colors[k],
+                            alpha = 0.5,
+                            zorder = 1,
+                        )
                     else
-                        PyPlot.plot(u[1, :], u[2, :], "-", color = colors[k], alpha=0.5, zorder=1)
+                        PyPlot.plot(
+                            u[1, :],
+                            u[2, :],
+                            "-",
+                            color = colors[k],
+                            alpha = 0.5,
+                            zorder = 1,
+                        )
                     end
                 end
             end
@@ -63,8 +77,16 @@ function plot_all()
                         push!(yy, y)
                     end
                 end
-                PyPlot.plot(xx, yy, "o", mfc="none", label = k, color = colors[k],
-                            alpha=0.5, zorder=2)
+                PyPlot.plot(
+                    xx,
+                    yy,
+                    "o",
+                    mfc = "none",
+                    label = k,
+                    color = colors[k],
+                    alpha = 0.5,
+                    zorder = 2,
+                )
             end
 
         end
@@ -100,5 +122,6 @@ end
 ixp = plot_all()
 
 f = [@sprintf("plots/%03d.pdf", j) for j = 1:ixp-1]
-c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=nephrectomies$(mode).pdf $f`
+c =
+    `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=nephrectomies$(mode).pdf $f`
 run(c)

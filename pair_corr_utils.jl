@@ -4,14 +4,14 @@ using Statistics
 # the glomerular categories in the dictionary 'a'.
 # If 'use' is present, exclude categories not listed
 # in it.
-function pair_corr(a; use::Array{String,1}=[])
+function pair_corr(a; use::Array{String,1} = [])
 
     dit = Dict{Tuple{String,String},Array{Float64,1}}()
 
-	ptp = collect(keys(a))
-	if length(use) > 0
-	    ptp = [x for x in ptp if x in use]
-	end
+    ptp = collect(keys(a))
+    if length(use) > 0
+        ptp = [x for x in ptp if x in use]
+    end
 
     # Loop over all distinct pairs of types
     m = length(ptp)
@@ -54,7 +54,7 @@ function pair_corr(a; use::Array{String,1}=[])
                 y2 = mean(v2[2, :])
 
                 # Distance between two glomeruli
-                d = sqrt((x1-x2)^2 + (y1-y2)^2)
+                d = sqrt((x1 - x2)^2 + (y1 - y2)^2)
 
                 # If the gloms are too close, it is probably the same
                 # glom listed twice so exclude.
@@ -67,7 +67,7 @@ function pair_corr(a; use::Array{String,1}=[])
 
     # Reduce each list of correlations to a set of quantiles
     m = 20
-    pp = collect(range(1/m, 1-1/m, length=m))
+    pp = collect(range(1 / m, 1 - 1 / m, length = m))
     for (k, v) in dit
         if length(v) >= 20
             dit[k] = [quantile(v, p) for p in pp]
@@ -95,7 +95,7 @@ function get_normalized_paircorr()
     for fn in fi
 
         # Get the scanner ID from the file name
-        fni = replace(fn, ".xml"=>"")
+        fni = replace(fn, ".xml" => "")
         fni = parse(Int, fni)
 
         # Skip if we can't match this scanner id to a
@@ -116,7 +116,7 @@ function get_normalized_paircorr()
             end
         end
 
-        dit = pair_corr(b, use=["All Glomeruli", "Atypical"])
+        dit = pair_corr(b, use = ["All Glomeruli", "Atypical"])
 
         if (length(dit[k1]) == 0) || (length(dit[k2]) == 0)
             continue
@@ -160,8 +160,8 @@ function get_response(vname, idpcq, pcq)
 
     close(out)
 
-    ii = [i for (i,v) in enumerate(y) if !ismissing(v)]
-	y = Array{Float64}(y[ii])
-	x = Array{Float64,2}(pcq[ii, :])
+    ii = [i for (i, v) in enumerate(y) if !ismissing(v)]
+    y = Array{Float64}(y[ii])
+    x = Array{Float64,2}(pcq[ii, :])
     return (y, x)
 end
