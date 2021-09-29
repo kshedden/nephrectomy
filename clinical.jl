@@ -10,10 +10,36 @@ include("clinical_utils.jl")
 # Pairwise correlation quantiles
 idpcq, pcq = get_normalized_paircorr()
 
+# Age has the most complete coverage so use it to save
+# the scores and loadings.
+function save_age()
+
+    y, x, ids = get_response(:Age, idpcq, pcq)
+
+    # PCA
+    for j = 1:size(x, 2)
+        x[:, j] .-= mean(x[:, j])
+    end
+    u, s, v = svd(x)
+
+    u_df = DataFrame(
+        :Scanner_id => ids[:, :Scanner_id],
+        :TCP_id => ids[:, :TCP_id],
+        :score1 => u[:, 1],
+        :score2 => u[:, 2],
+        :score3 => u[:, 3],
+    )
+    v_df = DataFrame(:factor1 => v[:, 1], :factor2 => v[:, 2], :factor3 => v[:, 3])
+    CSV.write("age_scores.csv", u_df)
+    CSV.write("age_factors.csv", v_df)
+end
+
+save_age()
+
 
 function analyze(vname, ifig, out)
 
-    y, x = get_response(vname, idpcq, pcq)
+    y, x, ids = get_response(vname, idpcq, pcq)
 
     # PCA
     for j = 1:size(x, 2)

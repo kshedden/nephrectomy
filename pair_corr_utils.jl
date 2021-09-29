@@ -137,31 +137,28 @@ end
 # array of normalized distance quantiles.
 function get_response(vname, idpcq, pcq)
 
-    xm = Dict{String,Float64}()
-    for (i, r) in enumerate(eachrow(df))
-        if !ismissing(r[vname])
-            xm[r.TCP_ID] = r[vname]
-        end
-    end
-
-    # Keep track of the subject that cannot be matched.
+    # Keep track of the subjects that cannot be matched.
     out = open("nomatch.csv", "w")
-
     y = Union{Float64,Missing}[]
+    ids = []
     for id in idpcq
         if haskey(tcp_rownum, idmr[id])
             ri = tcp_rownum[idmr[id]]
+            push!(ids, [id, idmr[id]])
             push!(y, df[ri, vname])
         else
             write(out, @sprintf("%s,%s\n", id, idmr[id]))
             push!(y, missing)
         end
     end
-
     close(out)
 
     ii = [i for (i, v) in enumerate(y) if !ismissing(v)]
     y = Array{Float64}(y[ii])
     x = Array{Float64,2}(pcq[ii, :])
-    return (y, x)
+
+    ids = ids[ii]
+    id_df = DataFrame(:Scanner_id => [x[1] for x in ids], :TCP_id => [x[2] for x in ids])
+
+    return (y, x, id_df)
 end
