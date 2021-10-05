@@ -91,7 +91,7 @@ function get_normalized_paircorr()
     k2 = ("All Glomeruli", "All Glomeruli")
 
     pc = Dict{String,Array{Float64,1}}()
-    x, idx = [], []
+    x, xn, xd, idx = [], [], [], []
     for fn in fi
 
         # Get the scanner ID from the file name
@@ -107,6 +107,7 @@ function get_normalized_paircorr()
         println(fn)
         a = read_annot(fn)
 
+        # Condense to typical and atypical groups
         b = Dict{String,Array{Array{Float64,2},1}}()
         b["All Glomeruli"] = a["All Glomeruli"]
         b["Atypical"] = Array{Float64,1}()
@@ -124,12 +125,16 @@ function get_normalized_paircorr()
 
         push!(idx, fni)
         push!(x, log.(dit[k1] ./ dit[k2]))
+        push!(xn, dit[k1])
+        push!(xd, dit[k2])
 
     end
 
     x = hcat(x...)'
+    xn = hcat(xn...)'
+    xd = hcat(xd...)'
 
-    return tuple(idx, x)
+    return tuple(idx, x, xn, xd)
 
 end
 

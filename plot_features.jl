@@ -129,15 +129,15 @@ end
 
 function plot_sorted(mode::Int, level)
 
-	u_df = open("age_scores.csv") do io
-		CSV.read(io, DataFrame)
-	end
+    u_df = open("age_scores.csv") do io
+        CSV.read(io, DataFrame)
+    end
 
-	s = Symbol("score$(level)")
-	ii = sortperm(u_df[:, s])
-	idx = u_df[ii, :Scanner_id]
-	fi = ["$(id).xml" for id in idx]
-	plot_all(mode, fi, "nephrectomies_sorted_$(level).pdf")
+    s = Symbol("score$(level)")
+    ii = sortperm(u_df[:, s])
+    idx = u_df[ii, :Scanner_id]
+    fi = ["$(id).xml" for id in idx]
+    plot_all(mode, fi, "nephrectomies_sorted_$(level).pdf")
 
 end
 

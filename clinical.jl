@@ -8,7 +8,10 @@ include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
 # Pairwise correlation quantiles
-idpcq, pcq = get_normalized_paircorr()
+# pcq are the log ratios of atypical/atypical distances versus typical/typical distances
+# pcqn are the atypical/atypical distances
+# pcqd are the typical/typical distances
+idpcq, pcq, pcqn, pcqd = get_normalized_paircorr()
 
 # Age has the most complete coverage so use it to save
 # the scores and loadings.
@@ -40,6 +43,7 @@ save_age()
 function analyze(vname, ifig, out)
 
     y, x, ids = get_response(vname, idpcq, pcq)
+    m = size(x, 2)
 
     # PCA
     for j = 1:size(x, 2)
@@ -79,6 +83,26 @@ function analyze(vname, ifig, out)
     PyPlot.ylabel("Loading", size = 15)
     PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
     ifig += 1
+
+    # For age only, plot the distance quantiles
+    if vname == :Age
+        pr = collect(range(1 / m, 1 - 1 / m, length = m))
+        for (i, id) in enumerate(idpcq)
+            PyPlot.clf()
+            PyPlot.axes([0.1, 0.15, 0.75, 0.8])
+            PyPlot.grid(true)
+            PyPlot.title(id)
+            PyPlot.plot(pr, pcqn[i, :] / 1000, label = "AA")
+            PyPlot.plot(pr, pcqd[i, :] / 1000, label = "TT")
+            ha, lb = PyPlot.gca().get_legend_handles_labels()
+            leg = PyPlot.figlegend(ha, lb, "center right")
+            leg.draw_frame(false)
+            PyPlot.xlabel("Probability", size = 15)
+            PyPlot.ylabel("Quantile", size = 15)
+            PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+            ifig += 1
+        end
+    end
 
     println(c)
     write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, c...))
