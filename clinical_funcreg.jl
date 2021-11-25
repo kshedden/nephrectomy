@@ -9,13 +9,14 @@ include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
 # Pairwise correlation quantiles
-idpcq, pcq = get_normalized_paircorr()
+idpcq, pcq, pcqn, pcqd = get_normalized_paircorr()
 
 function analyze(vname, ifig, out)
 
     y, x = get_response(vname, idpcq, pcq)
+	n, p = size(x)
 
-    for j = 1:size(x, 2)
+    for j = 1:p
         x[:, j] = x[:, j] .- mean(x[:, j])
     end
     y = (y .- mean(y)) ./ std(y)
@@ -23,7 +24,7 @@ function analyze(vname, ifig, out)
     u, s, v = svd(x)
     sd = std(u[:, 1])
 
-    p = size(x, 2)
+	# The second derivative penalty matrix
     F = zeros(p - 2, p)
     for i = 1:p-2
         F[i, i:i+2] = [1, -2, 1]
@@ -33,13 +34,25 @@ function analyze(vname, ifig, out)
     println(vname)
     bl = []
     for la in [0.1, 1.0, 10.0, 100.0]
+
+    	# Functional regression coefficients
         pm = x' * x + la * G
         b = pm \ (x' * y)
         push!(bl, b)
+
+        # Fitted values
         yh = x * b
+
+        # Unexplained variance
         sig2 = mean((yh - y) .^ 2)
+
+        # Covariance matrix of parameter estimates
         cm = sig2 * (pm \ (x' * x) / pm)
+
+        # Chi-square statistic
         cs = b' * (cm \ b)
+
+        # P-values
         pv = 1 - cdf(Chisq(20), cs)
         r = cor(yh, y)
         write(out, @sprintf("%s,%.2f,%.3f,%.3f\n", vname, la, pv, r))
@@ -65,48 +78,6 @@ function analyze(vname, ifig, out)
     return ifig
 
 end
-
-avn = [
-    :Female,
-    :NonWhite,
-    :Age,
-    :htn_code_pre,
-    :dm_code_pre,
-    :bmi,
-    :htn_sbp,
-    :htn,
-    :dm_lab_pre,
-    :dm,
-    :bl_cr_prenx,
-    :bl_egfr_prenx,
-    :bl_ckd_prenx,
-    :kdigo,
-    :"Hyper-Bin",
-    :"T2D-Bin",
-    :"eGFR Min4 Mean",
-    :"I/L Ratio",
-    :">100%",
-    :">50%",
-    :NormalGlomPercent,
-    :AbnormalPercent,
-    :"AKI-Bin",
-    :GGS,
-    :Imploding,
-    :GlomVol,
-    :"% CA Glomerular",
-    :"Nephron Density (All)",
-    :"Nephron Density (Normal)",
-    :"GV/Podocyte",
-    :PodoDensity,
-    :MesIndex,
-    :PodoPerGlom,
-    :MesVol,
-    :PodoVol,
-    :FIA,
-    :SGS,
-    :Ischemic,
-    :vGlepp,
-]
 
 function main()
     ifig = 0

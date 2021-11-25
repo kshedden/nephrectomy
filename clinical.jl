@@ -111,49 +111,6 @@ function analyze(vname, ifig, out)
 
 end
 
-# Variables to analyze
-avn = [
-    :Female,
-    :NonWhite,
-    :Age,
-    :htn_code_pre,
-    :dm_code_pre,
-    :bmi,
-    :htn_sbp,
-    :htn,
-    :dm_lab_pre,
-    :dm,
-    :bl_cr_prenx,
-    :bl_egfr_prenx,
-    :bl_ckd_prenx,
-    :kdigo,
-    :"Hyper-Bin",
-    :"T2D-Bin",
-    :"eGFR Min4 Mean",
-    :"I/L Ratio",
-    :">100%",
-    :">50%",
-    :NormalGlomPercent,
-    :AbnormalPercent,
-    :"AKI-Bin",
-    :GGS,
-    :Imploding,
-    :GlomVol,
-    :"% CA Glomerular",
-    :"Nephron Density (All)",
-    :"Nephron Density (Normal)",
-    :"GV/Podocyte",
-    :PodoDensity,
-    :MesIndex,
-    :PodoPerGlom,
-    :MesVol,
-    :PodoVol,
-    :FIA,
-    :SGS,
-    :Ischemic,
-    :vGlepp,
-]
-
 function main()
     ifig = 0
     out = open("clinical_results.csv", "w")
