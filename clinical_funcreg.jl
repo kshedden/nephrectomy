@@ -14,7 +14,7 @@ idpcq, pcq, pcqn, pcqd = get_normalized_paircorr()
 function analyze(vname, ifig, out)
 
     y, x = get_response(vname, idpcq, pcq)
-	n, p = size(x)
+    n, p = size(x)
 
     for j = 1:p
         x[:, j] = x[:, j] .- mean(x[:, j])
@@ -24,7 +24,7 @@ function analyze(vname, ifig, out)
     u, s, v = svd(x)
     sd = std(u[:, 1])
 
-	# The second derivative penalty matrix
+    # The second derivative penalty matrix
     F = zeros(p - 2, p)
     for i = 1:p-2
         F[i, i:i+2] = [1, -2, 1]
@@ -35,7 +35,7 @@ function analyze(vname, ifig, out)
     bl = []
     for la in [0.1, 1.0, 10.0, 100.0]
 
-    	# Functional regression coefficients
+        # Functional regression coefficients
         pm = x' * x + la * G
         b = pm \ (x' * y)
         push!(bl, b)
