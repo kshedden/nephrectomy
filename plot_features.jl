@@ -13,6 +13,51 @@ ptf = ["All_glomeruli", "FGGS", "Ischemic", "FSGS", "BSPC", "Imploding", "Atypic
 # Plot as paths
 paf = ["Tissue", "Capsule", "CMJ", "Cortex"]
 
+# Make a plot showing the disconneced components of
+# each nephrectomy.
+function plot_one_component(neph_id::String, ixp::Int)::Int
+
+    a = annots[neph_id]
+
+    fni = parse(Int, neph_id)
+
+    PyPlot.clf()
+    PyPlot.axes([0.1, 0.1, 0.7, 0.8])
+    PyPlot.title("$(fni)")
+
+    if haskey(a, "Cortex")
+        for (j, u) in enumerate(a["Cortex"])
+            PyPlot.plot(u[1, :], u[2, :], "-"; color = "grey", lw = 3)
+        end
+    end
+
+    colors = Dict(nothing => "red", 1 => "blue", 2 => "green", 3 => "orange", 4 => "yellow")
+
+    cmp = a["All_glomeruli_components"]
+    uc = unique(cmp)
+    for (j, u) in enumerate(uc)
+        xx, yy = [], []
+        for (i, g) in enumerate(a["All_glomeruli"])
+
+            if cmp[i] != u
+                continue
+            end
+
+            push!(xx, mean(g[1, :]))
+            push!(yy, mean(g[2, :]))
+        end
+        PyPlot.plot(xx, yy, "o", mfc = "none", color = colors[u], alpha = 0.5, zorder = 2)
+    end
+
+    PyPlot.axis("off")
+
+    PyPlot.savefig(@sprintf("plots/%03d.pdf", ixp))
+    return ixp + 1
+end
+
+# Generate one figure for the given nephrectomy id.  If mode = 1,
+# show all atypical glomeruli as a single class, otherwise show
+# each atypical class distinctly.
 function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
 
     a = annots[neph_id]
@@ -22,6 +67,8 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
     end
 
     fni = parse(Int, neph_id)
+
+    # In mode 1, skip samples with no clinical data.
     if (mode == 1) && !haskey(sid_rownum, fni)
         return ixp
     end
@@ -47,7 +94,7 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
         if k in ptf
 
             xx, yy = [], []
-            for (j,u) in enumerate(v)
+            for (j, u) in enumerate(v)
                 for i in size(u, 2)
                     x = mean(u[1, :])
                     y = mean(u[2, :])
@@ -70,7 +117,8 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
 
     PyPlot.axis("off")
 
-    # Annotations
+    # If available, print some clinical information at the bottom
+    # of the graph.
     if haskey(sid_rownum, fni)
         ii = sid_rownum[fni]
         age = df[ii, :age]
@@ -119,6 +167,24 @@ function plot_sorted(mode::Int, level, outname::String)
     fi = ["$(id).xml" for id in idx]
     plot_all(mode, outname)
 end
+
+function plot_components()
+
+    rm("plots", force = true, recursive = true)
+    mkdir("plots")
+
+    ixp = 0
+    for neph_id in keys(annots)
+        ixp = plot_one_component(neph_id, ixp)
+    end
+
+    f = [@sprintf("plots/%03d.pdf", j) for j = 0:ixp-1]
+    c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=components.pdf $f`
+    run(c)
+end
+
+# Plot the tissue islands bound by closed loops of cortex.
+plot_components()
 
 # If mode is 1, collapse all atypical glom types into one category.
 level = 1

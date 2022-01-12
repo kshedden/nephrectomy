@@ -82,5 +82,5 @@ colors = Dict{String,String}(
     "CMJ" => "orange",
     "Tissue" => "yellow",
     "Atypical" => "blue",
-	"Cortex" => "violet",
+    "Cortex" => "violet",
 )
