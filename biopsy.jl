@@ -87,7 +87,7 @@ function make_plot(fn, a, ixp)
 
     # Get centroid of all glomeruli
     ctr = [0.0, 0.0]
-    agl = a["All Glomeruli"]
+    agl = a["All_glomeruli"]
     gloms = zeros(2, length(agl))
     for (i, g) in enumerate(agl)
         m = mean(g, dims = 2)

@@ -1,5 +1,8 @@
 using TarIterators, LightXML, GZip, PolygonOps, StaticArrays, Statistics, Serialization
 
+# Path to annotations file
+fn = "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.tar.gz"
+
 include("defs.jl")
 
 function parse_annot(raw_xml::String)
@@ -69,14 +72,18 @@ function find_components(anno)
         end
 
         gloms = anno[g]
-        cmp = Vector{Vector{Int}}()
+        cmp = Vector{Union{Int,Nothing}}()
 
         for (i, glom) in enumerate(gloms)
             # The centroid of the glomerulus
             c = mean(glom, dims = 2)
 
-            ix = [j for (j,pl) in enumerate(polys) if inpolygon(c, pl) != 0]
-            push!(cmp, ix)
+            ix = [j for (j, pl) in enumerate(polys) if inpolygon(c, pl) != 0]
+            if length(ix) == 1
+                push!(cmp, ix[1])
+            else
+                push!(cmp, nothing)
+            end
         end
         components[g] = cmp
     end
@@ -85,7 +92,6 @@ function find_components(anno)
 end
 
 annots = Dict{String,Any}()
-fn = "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.tar.gz"
 GZip.open(fn) do io
     ti = TarIterator(io, :file)
     for (h, iox) in ti
@@ -100,7 +106,7 @@ GZip.open(fn) do io
             y["$(k)_components"] = v
         end
         annots[pp[1]] = y
-	end
+    end
 end
 
 GZip.open("annotations.ser.gz", "w") do io

@@ -9,6 +9,7 @@ function pair_corr(a; use::Array{String,1} = [])
     dit = Dict{Tuple{String,String},Array{Float64,1}}()
 
     ptp = collect(keys(a))
+    ptp = [x for x in ptp if !endswith(x, "_components")]
     if length(use) > 0
         ptp = [x for x in ptp if x in use]
     end
@@ -32,6 +33,10 @@ function pair_corr(a; use::Array{String,1} = [])
             dit[qq] = []
         end
 
+        # The component label for each glom.
+        cmp1 = a["$(q1)_components"]
+        cmp2 = a["$(q2)_components"]
+
         # The bounding boxes for each category.
         u1, u2 = a[q1], a[q2]
 
@@ -47,6 +52,11 @@ function pair_corr(a; use::Array{String,1} = [])
                 # once.
                 if (j1 == j2) && (k2 >= k1)
                     break
+                end
+
+                # Only compare glom pairs in the same component
+                if cmp1[k1] != cmp2[k2] || isnothing(cmp1[k1]) || isnothing(cmp2[k2])
+                    continue
                 end
 
                 # Reduce each bounding box in category 2 to its centroid
@@ -77,26 +87,24 @@ function pair_corr(a; use::Array{String,1} = [])
     end
 
     return dit
-
 end
 
 # Get the normalized pairwise distance quantiles.
-function get_normalized_paircorr()
+function get_normalized_paircorr(annots)
 
     # We are interested in the pairwise distances between these
     # two types
     k1 = ("Atypical", "Atypical")
 
     # Normalize to the pairwise distances between these two types
-    k2 = ("All Glomeruli", "All Glomeruli")
+    k2 = ("All_glomeruli", "All_glomeruli")
 
     pc = Dict{String,Array{Float64,1}}()
     x, xn, xd, idx = [], [], [], []
-    for fn in fi
+    for neph_id in keys(annots)
 
         # Get the scanner ID from the file name
-        fni = replace(fn, ".xml" => "")
-        fni = parse(Int, fni)
+        fni = parse(Int, neph_id)
 
         # Skip if we can't match this scanner id to a
         # TCP id.
@@ -104,20 +112,13 @@ function get_normalized_paircorr()
             continue
         end
 
-        println(fn)
-        a = read_annot(fn)
+        println(neph_id)
+        a = annots[neph_id]
 
         # Condense to typical and atypical groups
-        b = Dict{String,Array{Array{Float64,2},1}}()
-        b["All Glomeruli"] = a["All Glomeruli"]
-        b["Atypical"] = Array{Float64,1}()
-        for x in ["FGGS", "Ischemic", "FGGS", "Imploding"]
-            if haskey(a, x)
-                push!(b["Atypical"], a[x]...)
-            end
-        end
+        b = condense(a)
 
-        dit = pair_corr(b, use = ["All Glomeruli", "Atypical"])
+        dit = pair_corr(b, use = ["All_glomeruli", "Atypical"])
 
         if (length(dit[k1]) == 0) || (length(dit[k2]) == 0)
             continue
@@ -127,7 +128,6 @@ function get_normalized_paircorr()
         push!(x, log.(dit[k1] ./ dit[k2]))
         push!(xn, dit[k1])
         push!(xd, dit[k2])
-
     end
 
     x = hcat(x...)'
@@ -135,7 +135,6 @@ function get_normalized_paircorr()
     xd = hcat(xd...)'
 
     return tuple(idx, x, xn, xd)
-
 end
 
 # Return a phenotype vector y for variable 'vname', and the corresponding

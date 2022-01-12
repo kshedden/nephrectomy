@@ -9,6 +9,7 @@ rm("plots", force = true, recursive = true)
 mkdir("plots")
 
 include("defs.jl")
+include("annot_utils.jl")
 include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
@@ -18,7 +19,7 @@ Pairwise correlation quantiles
   pcqn are the atypical/atypical distances
   pcqd are the typical/typical distances
 =#
-idpcq, pcq, pcqn, pcqd = get_normalized_paircorr()
+idpcq, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 
 function analyze(vname, ifig, out)
 

@@ -4,6 +4,7 @@ rm("plots", force = true, recursive = true)
 mkdir("plots")
 
 include("defs.jl")
+include("annot_utils.jl")
 include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
@@ -11,7 +12,7 @@ include("clinical_utils.jl")
 # pcq are the log ratios of atypical/atypical distances versus typical/typical distances
 # pcqn are the atypical/atypical distances
 # pcqd are the typical/typical distances
-idpcq, pcq, pcqn, pcqd = get_normalized_paircorr()
+idpcq, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 
 # Age has the most complete coverage so use it to save
 # the scores and loadings.

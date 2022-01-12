@@ -1,12 +1,13 @@
 using PyPlot, Statistics, Printf, DataFrames, IterTools
 
 include("defs.jl")
+include("annot_utils.jl")
 include("pair_corr_utils.jl")
 
 rm("plots", force = true, recursive = true)
 mkdir("plots")
 
-ptq = ["All Glomeruli", "FGGS", "Ischemic", "FSGS", "Imploding"]
+ptq = ["All_glomeruli", "FGGS", "Ischemic", "FSGS", "Imploding"]
 
 di = Dict{Tuple{String,String},Array{Float64,1}}()
 
@@ -14,10 +15,10 @@ di = Dict{Tuple{String,String},Array{Float64,1}}()
 smry = Dict{String,Array{Int,1}}()
 
 # Loop over all samples
-for fn in fi
+for neph_id in keys(annots)
 
-    println(fn)
-    a = read_annot(fn)
+    println(neph_id)
+    a = annots[neph_id]
 
     for q in ptq
         if !haskey(smry, q)
@@ -32,7 +33,7 @@ for fn in fi
     dit = pair_corr(a, use = ptq)
 
     # Normalize the distances to the all vs. all values.
-    vr = dit[tuple("All Glomeruli", "All Glomeruli")]
+    vr = dit[tuple("All_glomeruli", "All_glomeruli")]
     for (k, v) in dit
         if !haskey(di, k)
             di[k] = []
@@ -61,7 +62,7 @@ function plot_cumulative(ixp, mode; xmax = 0, ymax = 16)
 
     for (k, v) in di
 
-        if (k[1] == "All Glomeruli") || (k[2] == "All Glomeruli")
+        if (k[1] == "All_glomeruli") || (k[2] == "All_glomeruli")
             continue
         end
 
