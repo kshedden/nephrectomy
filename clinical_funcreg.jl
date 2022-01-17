@@ -57,7 +57,8 @@ function analyze(vname, ifig, out)
 
     println(vname)
     bl = []
-    for la in [0.01, 0.1, 1.0, 10.0, 100.0]
+    lax = Float64[1, 10, 50, 100]
+    for la in lax
 
         # Functional regression coefficients
         xtx = x' * x
@@ -66,16 +67,16 @@ function analyze(vname, ifig, out)
         yh, b, cs, pv = funcreg(pm, xtx, x, y)
         push!(bl, b)
 
-		# Permutation p-value for the global null E[b] = 0.
-		y0 = copy(y)
-		nrep = 1000
-		csa = zeros(nrep)
-		for k in 1:nrep
-			shuffle!(y0)
-	        _, _, cs0, _ = funcreg(pm, xtx, x, y0)
-	        csa[k] = cs0
-		end
-		pv1 = mean(csa .>= cs)
+        # Permutation p-value for the global null E[b] = 0.
+        y0 = copy(y)
+        nrep = 1000
+        csa = zeros(nrep)
+        for k = 1:nrep
+            shuffle!(y0)
+            _, _, cs0, _ = funcreg(pm, xtx, x, y0)
+            csa[k] = cs0
+        end
+        pv1 = mean(csa .>= cs)
 
         r = cor(yh, y)
         write(out, @sprintf("%s,%.2f,%.3f,%.3f,%.3f\n", vname, la, pv, pv1, r))
@@ -83,15 +84,18 @@ function analyze(vname, ifig, out)
 
     # Plot the PC loading vector
     PyPlot.clf()
-    PyPlot.axes([0.13, 0.12, 0.75, 0.8])
+    PyPlot.axes([0.13, 0.12, 0.7, 0.8])
     PyPlot.grid(true)
     pr = collect(range(0, 1, length = size(x, 2)))
     pr = pr ./ maximum(pr)
     cm = PyPlot.cm.get_cmap("jet")
     for (j, b) in enumerate(bl)
         col = cm(j / (length(bl) + 1))
-        PyPlot.plot(pr, b, "-", color = col)
+        PyPlot.plot(pr, b, "-", color = col, label = @sprintf("%.1f", lax[j]))
     end
+    ha, lb = PyPlot.gca().get_legend_handles_labels()
+    leg = PyPlot.figlegend(ha, lb, "center right")
+    leg.draw_frame(false)
     PyPlot.title(vname)
     PyPlot.xlabel("Probability point", size = 15)
     PyPlot.ylabel("Coefficient", size = 15)
@@ -99,7 +103,6 @@ function analyze(vname, ifig, out)
     ifig += 1
 
     return ifig
-
 end
 
 function main()
@@ -116,5 +119,6 @@ end
 ifig = main()
 
 f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
-c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_reg.pdf $f`
+c =
+    `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_funcreg_loadings.pdf $f`
 run(c)

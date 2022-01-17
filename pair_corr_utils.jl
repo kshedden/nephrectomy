@@ -3,10 +3,11 @@ using Statistics
 # Calculate pair-correlations within and between
 # the glomerular categories in the dictionary 'a'.
 # If 'use' is present, exclude categories not listed
-# in it.
-function pair_corr(a; use::Array{String,1} = [])
+# in it.  Only include distances in the same tissue
+# component.
+function pair_corr(a; use::Vector{String} = String[])
 
-    dit = Dict{Tuple{String,String},Array{Float64,1}}()
+    dit = Dict{Tuple{String,String},Vector{Float64}}()
 
     ptp = collect(keys(a))
     ptp = [x for x in ptp if !endswith(x, "_components")]
@@ -54,7 +55,9 @@ function pair_corr(a; use::Array{String,1} = [])
                     break
                 end
 
-                # Only compare glom pairs in the same component
+                # Only compare glom pairs in the same component.
+                # Component 'nothing' is a glom that was not bounded
+                # by any cortex loop.
                 if cmp1[k1] != cmp2[k2] || isnothing(cmp1[k1]) || isnothing(cmp2[k2])
                     continue
                 end
@@ -158,8 +161,8 @@ function get_response(vname, idpcq, pcq)
     close(out)
 
     ii = [i for (i, v) in enumerate(y) if !ismissing(v)]
-    y = Array{Float64}(y[ii])
-    x = Array{Float64,2}(pcq[ii, :])
+    y = Vector{Float64}(y[ii])
+    x = Matrix{Float64}(pcq[ii, :])
 
     ids = ids[ii]
     id_df = DataFrame(:Scanner_id => [x[1] for x in ids], :TCP_id => [x[2] for x in ids])
