@@ -1,4 +1,10 @@
-using GZip, CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots, Printf, PyPlot
+#=
+Use Principal Components Regression (PCR) to relate clinical 
+to spatial characteristics.
+=#
+
+using GZip, CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots
+using Distributions, Printf, PyPlot, Random
 
 rm("plots", force = true, recursive = true)
 mkdir("plots")
@@ -40,6 +46,25 @@ end
 
 save_age()
 
+# Permutation test for correlation coefficients
+function permcor(y, x; nrep=1000)
+
+	y = copy(y)
+	n = length(y)
+	r = cor(y, x)
+	z = sqrt(n-3)*log((1+r)/(1-r))/2
+
+	zl = zeros(nrep)
+	for i in 1:nrep
+		shuffle!(y)
+		r1 = cor(y, x)
+		z1 = sqrt(n-3)*log((1+r1)/(1-r1))/2
+		zl[i] = z1
+	end 
+
+	return (r, z, mean(abs.(zl) .> abs(z)))
+end
+
 
 function analyze(vname, ifig, out)
 
@@ -52,6 +77,7 @@ function analyze(vname, ifig, out)
     end
     u, s, v = svd(x)
 
+	# Try to make the loadings mostly positive
     for j = 1:3
         if sum(v[:, j] .< 0) > sum(v[:, j] .> 0)
             v[:, j] = -v[:, j]
@@ -59,12 +85,12 @@ function analyze(vname, ifig, out)
         end
     end
 
-    # Check to see if the PC scores are correlated with
+    # Obtain the correlation coefficients between the PC score and
     # the clinical trait.
-    c = Float64[]
-    c = push!(c, length(y))
-    for j = 1:3
-        push!(c, cor(y, u[:, j]))
+    c = Float64[length(y),]
+    for j in 1:3
+    	r, z, p = permcor(y, u[:, j])
+        push!(c, r, z, p)
     end
 
     # Plot the PC loading vector
@@ -105,17 +131,15 @@ function analyze(vname, ifig, out)
         end
     end
 
-    println(c)
-    write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, c...))
+    write(out, @sprintf("%s,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", vname, c...))
 
     return ifig
-
 end
 
 function main()
     ifig = 0
-    out = open("clinical_results.csv", "w")
-    write(out, "Variable,N,R1,R2,R3\n")
+    out = open("clinical_pcr_results.csv", "w")
+    write(out, "Variable,N,R1,Z1,P1,R2,Z2,P2,R3,P3,Z3\n")
     for av in avn
         ifig = analyze(av, ifig, out)
     end
