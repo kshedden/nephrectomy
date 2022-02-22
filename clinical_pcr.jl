@@ -3,7 +3,7 @@ Use Principal Components Regression (PCR) to relate clinical
 to spatial characteristics.
 =#
 
-using GZip, CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots
+using CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots
 using Distributions, Printf, PyPlot, Random
 
 rm("plots", force = true, recursive = true)
@@ -24,7 +24,8 @@ idpcq, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 # the scores and loadings.
 function save_age()
 
-    y, x, ids = get_response(:Age, idpcq, pcq)
+    y, x, ids = get_response(:CURRENT_AGE, idpcq, pcq)
+    println(length(y))
 
     # PCA
     for j = 1:size(x, 2)

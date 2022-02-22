@@ -95,6 +95,9 @@ end
 # Get the normalized pairwise distance quantiles.
 function get_normalized_paircorr(annots)
 
+    exclude = open("exclude_gnp.txt", "w")
+    write(exclude, "Reason,ScannerID,TCPID\n")
+
     # We are interested in the pairwise distances between these
     # two types
     k1 = ("Atypical", "Atypical")
@@ -112,10 +115,10 @@ function get_normalized_paircorr(annots)
         # Skip if we can't match this scanner id to a
         # TCP id.
         if !haskey(idmr, fni)
+            write(exclude, @sprintf("missing_id,%s,missing\n", neph_id))
             continue
         end
 
-        println(neph_id)
         a = annots[neph_id]
 
         # Condense to typical and atypical groups
@@ -124,6 +127,7 @@ function get_normalized_paircorr(annots)
         dit = pair_corr(b, use = ["All_glomeruli", "Atypical"])
 
         if (length(dit[k1]) == 0) || (length(dit[k2]) == 0)
+            write(exclude, @sprintf("insufficient_data,%s,%s\n", neph_id, idmr[fni]))
             continue
         end
 
@@ -137,6 +141,8 @@ function get_normalized_paircorr(annots)
     xn = hcat(xn...)'
     xd = hcat(xd...)'
 
+    close(exclude)
+
     return tuple(idx, x, xn, xd)
 end
 
@@ -144,8 +150,13 @@ end
 # array of normalized distance quantiles.
 function get_response(vname, idpcq, pcq)
 
+    println(vname)
     # Keep track of the subjects that cannot be matched.
-    out = open("nomatch.csv", "w")
+    fn = @sprintf(
+        "nomatch_%s.csv",
+        replace(string(vname), " " => "", "/" => "", "%" => "", ">" => "")
+    )
+    out = open(fn, "w")
     y = Union{Float64,Missing}[]
     ids = []
     for id in idpcq
@@ -154,8 +165,17 @@ function get_response(vname, idpcq, pcq)
             push!(ids, [id, idmr[id]])
             push!(y, df[ri, vname])
         else
-            write(out, @sprintf("%s,%s\n", id, idmr[id]))
+            # This never happens
+            write(out, @sprintf("%s,%s,missing_id\n", id, idmr[id]))
+            push!(ids, missing)
             push!(y, missing)
+        end
+    end
+
+    # Save ids with missing phenotype variable
+    for (i, v) in enumerate(y)
+        if ismissing(v) && !ismissing(ids[i])
+            write(out, @sprintf("%s,%s,missing_clinical\n", ids[i][1], ids[i][2]))
         end
     end
     close(out)
