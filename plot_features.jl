@@ -8,7 +8,8 @@ rm("plots", force = true, recursive = true)
 mkdir("plots")
 
 # Plot as points
-ptf = ["All_glomeruli", "FGGS", "Ischemic", "FSGS", "BSPC", "Imploding", "Atypical"]
+ptf =
+    ["All_glomeruli", "Normal", "FGGS", "Ischemic", "FSGS", "BSPC", "Imploding", "Atypical"]
 
 # Plot as paths
 paf = ["Tissue", "Capsule", "CMJ", "Cortex"]
@@ -77,10 +78,10 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
     PyPlot.axes([0.1, 0.1, 0.7, 0.8])
     PyPlot.title("$(fni)")
 
-    for (k, v) in a
-
-        # Features to be plotted with a path
-        if k in paf
+    # Features to be plotted with a path
+    for k in paf
+        if haskey(a, k)
+            v = a[k]
             for (j, u) in enumerate(v)
                 args = (color = colors[k], alpha = 0.5, zorder = 1)
                 if j == 1
@@ -89,19 +90,23 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
                 PyPlot.plot(u[1, :], u[2, :], "-"; args...)
             end
         end
+    end
 
-        # Features to be plotted with a point
-        if k in ptf
-
-            xx, yy = [], []
-            for (j, u) in enumerate(v)
-                for i in size(u, 2)
-                    x = mean(u[1, :])
-                    y = mean(u[2, :])
-                    push!(xx, x)
-                    push!(yy, y)
-                end
+    # Features to be plotted with a point
+    for k in ptf
+        if k == "All_glomeruli"
+            continue
+        end
+        if haskey(a, k)
+            v = a[k]
+            xx, yy = Float64[], Float64[]
+            for u in v
+                x = mean(u[1, :])
+                y = mean(u[2, :])
+                push!(xx, x)
+                push!(yy, y)
             end
+
             PyPlot.plot(
                 xx,
                 yy,
@@ -110,7 +115,7 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
                 label = k,
                 color = colors[k],
                 alpha = 0.5,
-                zorder = 2,
+                zorder = k == "Normal" ? 2 : 3,
             )
         end
     end
@@ -137,7 +142,6 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
 
     PyPlot.savefig(@sprintf("plots/%03d.pdf", ixp))
     return ixp + 1
-
 end
 
 function plot_all(mode::Int, outname::String)
@@ -188,7 +192,7 @@ plot_components()
 
 # If mode is 1, collapse all atypical glom types into one category.
 level = 1
-for mode in [0, 1]
-    plot_sorted(mode, level, "nephrectomies_sorted_$(level).pdf")
+for mode in [0] # DEBUG [0, 1]
+    #DEBUG plot_sorted(mode, level, "nephrectomies_sorted_$(level).pdf")
     plot_all(mode, "nephrectomies$(mode).pdf")
 end

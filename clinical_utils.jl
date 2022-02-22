@@ -1,13 +1,12 @@
-using GZip, CSV, DataFrames
+using CodecZlib, CSV, DataFrames
 
-df1 = GZip.open("/home/kshedden/data/Markus_Bitzer/clinical_var.csv.gz") do io
-    CSV.read(io, DataFrame)
+df1 = open("/home/kshedden/data/Markus_Bitzer/clinical_var.csv.gz") do io
+    CSV.read(GzipDecoderStream(io), DataFrame)
 end
 
-df2 =
-    GZip.open("/home/kshedden/data/Markus_Bitzer/nephrectomy_characteristics.csv.gz") do io
-        CSV.read(io, DataFrame)
-    end
+df2 = open("/home/kshedden/data/Markus_Bitzer/nephrectomy_characteristics.csv.gz") do io
+    CSV.read(GzipDecoderStream(io), DataFrame)
+end
 
 # The TCP id's mix hyphens and underscores, so standardize to use underscores.
 df1[!, :TCP_ID] = [replace(x, "-" => "_") for x in df1[:, :TCP_ID]]
@@ -22,8 +21,8 @@ df[:, :NonWhite] =
 # Map between id's used in the clinical and annotation files
 # idm maps TCP ID to Scanner ID
 # idmr maps Scanner ID to TCP ID
-idm, idmr = GZip.open("id_map.csv.gz") do io
-    dx = CSV.read(io, DataFrame)
+idm, idmr = open("id_map.csv.gz") do io
+    dx = CSV.read(GzipDecoderStream(io), DataFrame)
     idm = Dict{String,Int}()
     idmr = Dict{Int,String}()
     for r in eachrow(dx)

@@ -1,4 +1,5 @@
-using TarIterators, LightXML, GZip, PolygonOps, StaticArrays, Statistics, Serialization
+using TarIterators, LightXML, GZip, PolygonOps, StaticArrays
+using Statistics, Serialization
 
 # Path to annotations file
 fn = "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.tar.gz"
@@ -43,6 +44,46 @@ function parse_annot(raw_xml::String)
     end
 
     free(xd)
+    rd = dedup(rd)
+    return rd
+end
+
+# Create a "normal" category consisting of glomeruli that are in "All_glomeruli"
+# but not in any atypical class.
+function dedup(rd)
+
+    if !haskey(rd, "All_glomeruli")
+        return rd
+    end
+
+    # All atypical glom centroids
+    atp = Vector{SVector{2,Float64}}()
+    for k in keys(rd)
+        if k in atypical_glom_types
+            for x in rd[k]
+                px = mean(x[1, :])
+                py = mean(x[2, :])
+                push!(atp, SVector{2,Float64}(px, py))
+            end
+        end
+    end
+
+    nrml = []
+    for x in rd["All_glomeruli"]
+        px = mean(x[1, :])
+        py = mean(x[2, :])
+        z = SVector{2,Float64}(px, py)
+        di = Inf
+        for u in atp
+            d = sqrt(sum(abs2, u - z))
+            di = d < di ? d : di
+        end
+        if di > 200
+            push!(nrml, x)
+        end
+    end
+    rd["Normal"] = nrml
+
     return rd
 end
 

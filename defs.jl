@@ -1,11 +1,4 @@
-using LightXML, TarIterators
-
-# Path to the annotation data
-pa = "/home/kshedden/data/Markus_Bitzer/Annotations"
-
-# All annotation files
-fi = readdir(pa)
-fi = [x for x in fi if endswith(x, ".xml")]
+using LightXML
 
 Region = Array{Float64,2}
 
@@ -68,7 +61,8 @@ avn = [
     :vGlepp,
 ]
 
-glom_types = ["All_glomeruli", "FGGS", "FSGS", "BSPC", "Ischemic", "Normal", "Imploding"]
+atypical_glom_types = ["FGGS", "FSGS", "BSPC", "Ischemic", "Imploding"]
+glom_types = vcat(["All_glomeruli", "Normal"], atypical_glom_types)
 
 colors = Dict{String,String}(
     "All_glomeruli" => "grey",

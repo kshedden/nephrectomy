@@ -71,6 +71,21 @@ function analyze(vname, ifig, out)
     y, x, ids = get_response(vname, idpcq, pcq)
     m = size(x, 2)
 
+    # Mean of r_i(p), informative about whether aa or tt
+    # distances are smaller, irrespective of clinical trait.
+    if vname == :Age
+        xm = mean(x, dims = 1)[:]
+        PyPlot.clf()
+        PyPlot.axes([0.15, 0.1, 0.8, 0.8])
+        PyPlot.grid(true)
+        pp = range(1 / 40, 39 / 40, length = 20)
+        PyPlot.xlabel("Probability point", size = 15)
+        PyPlot.ylabel(raw"${\rm Avg}_i\, r_i(p)$", size = 15)
+        PyPlot.plot(pp, xm, "-")
+        PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+        ifig += 1
+    end
+
     # PCA
     for j = 1:size(x, 2)
         x[:, j] .-= mean(x[:, j])
@@ -139,7 +154,7 @@ end
 function main()
     ifig = 0
     out = open("clinical_pcr_results.csv", "w")
-    write(out, "Variable,N,R1,Z1,P1,R2,Z2,P2,R3,P3,Z3\n")
+    write(out, "Variable,N,R1,Z1,P1,R2,Z2,P2,R3,Z3,P3\n")
     for av in avn
         ifig = analyze(av, ifig, out)
     end
