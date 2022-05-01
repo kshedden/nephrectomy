@@ -34,20 +34,30 @@ function plot_one_component(neph_id::String, ixp::Int)::Int
 
     colors = Dict(nothing => "red", 1 => "blue", 2 => "green", 3 => "orange", 4 => "yellow")
 
-    cmp = a["All_glomeruli_components"]
-    uc = unique(cmp)
-    for (j, u) in enumerate(uc)
-        xx, yy = [], []
-        for (i, g) in enumerate(a["All_glomeruli"])
+    if haskey(a, "All_glomeruli_components")
+        cmp = a["All_glomeruli_components"]
+        uc = unique(cmp)
+        for (j, u) in enumerate(uc)
+            xx, yy = [], []
+            for (i, g) in enumerate(a["All_glomeruli"])
 
-            if cmp[i] != u
-                continue
+                if cmp[i] != u
+                    continue
+                end
+
+                push!(xx, mean(g[1, :]))
+                push!(yy, mean(g[2, :]))
             end
-
-            push!(xx, mean(g[1, :]))
-            push!(yy, mean(g[2, :]))
+            PyPlot.plot(
+                xx,
+                yy,
+                "o",
+                mfc = "none",
+                color = colors[u],
+                alpha = 0.5,
+                zorder = 2,
+            )
         end
-        PyPlot.plot(xx, yy, "o", mfc = "none", color = colors[u], alpha = 0.5, zorder = 2)
     end
 
     PyPlot.axis("off")
@@ -126,11 +136,11 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
     # of the graph.
     if haskey(sid_rownum, fni)
         ii = sid_rownum[fni]
-        age = df[ii, :age]
-        bmi = df[ii, :bmi]
+        age = df[ii, :AGE]
+        bmi = ismissing(df[ii, :BMI]) ? "" : @sprintf("%.1f", df[ii, :BMI])
         sex = df[ii, :SEX]
         htn = df[ii, :htn]
-        dm = df[ii, :dm]
+        dm = df[ii, :dm_med]
         race = df[ii, :RACE]
         la = "age=$(age), sex=$(sex), HTN=$(htn), BMI=$(bmi), DM=$(dm), race=$(race)"
         PyPlot.figtext(0.05, 0.02, la)
@@ -192,7 +202,7 @@ plot_components()
 
 # If mode is 1, collapse all atypical glom types into one category.
 level = 1
-for mode in [0] # DEBUG [0, 1]
+for mode in [0, 1]
     #DEBUG plot_sorted(mode, level, "nephrectomies_sorted_$(level).pdf")
     plot_all(mode, "nephrectomies$(mode).pdf")
 end

@@ -1,8 +1,8 @@
-using TarIterators, LightXML, GZip, PolygonOps, StaticArrays
-using Statistics, Serialization
+using TarIterators, LightXML, CodecZlib, PolygonOps, StaticArrays
+using Statistics, Serialization, Printf
 
 # Path to annotations file
-fn = "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.tar.gz"
+pa = "/home/kshedden/data/Markus_Bitzer/Annotations"
 
 include("defs.jl")
 
@@ -132,24 +132,70 @@ function find_components(anno)
     return components
 end
 
-annots = Dict{String,Any}()
-GZip.open(fn) do io
-    ti = TarIterator(io, :file)
-    for (h, iox) in ti
-        p = h.path
-        pp = splitext(p)
-        println(pp[1])
-        @assert length(pp) == 2 && pp[2] == ".xml"
-        x = read(io, String)
-        y = parse_annot(x)
-        cmp = find_components(y)
-        for (k, v) in cmp
-            y["$(k)_components"] = v
+function process_batch(fn, annots)
+    fn = joinpath(pa, fn)
+    println("fn=", fn)
+    open(GzipDecompressorStream, fn) do io
+        ti = TarIterator(io, :file)
+
+        for (h, iox) in ti
+            p = h.path
+            pp = splitext(p)
+            println(pp[1])
+            @assert length(pp) == 2 && pp[2] == ".xml"
+            x = read(iox, String)
+            y = parse_annot(x)
+            cmp = find_components(y)
+            for (k, v) in cmp
+                y["$(k)_components"] = v
+            end
+            annots[pp[1]] = y
         end
-        annots[pp[1]] = y
+    end
+    return annots
+end
+
+function scan_batches()
+
+    fx = Dict{String,Int}()
+
+    for f in readdir(pa)
+        fn = joinpath(pa, f)
+        println("fn=", fn)
+        open(GzipDecompressorStream, fn) do io
+            ti = TarIterator(io, :file)
+            for (h, iox) in ti
+                p = h.path
+                if haskey(fx, p)
+                    msg = @sprintf("Sample %s appears in multiple batches\n", p)
+                    println(msg)
+                    fx[p] += 1
+                else
+                    fx[p] = 1
+                end
+            end
+        end
+    end
+    println(@sprintf("%d total samples found\n", length(fx)))
+end
+
+
+function process_batches()
+
+    annots = Dict{String,Any}()
+
+    fl = readdir(pa)
+    for fn in fl
+        if endswith(fn, ".tar.gz")
+            annots = process_batch(fn, annots)
+        end
+    end
+
+    println(@sprintf("%d samples processed\n", length(annots)))
+    open(GzipCompressorStream, "annotations.ser.gz", "w") do io
+        serialize(io, annots)
     end
 end
 
-GZip.open("annotations.ser.gz", "w") do io
-    serialize(io, annots)
-end
+scan_batches()
+process_batches()

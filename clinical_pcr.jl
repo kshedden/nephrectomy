@@ -1,5 +1,5 @@
 #=
-Use Principal Components Regression (PCR) to relate clinical 
+Use Principal Components Regression (PCR) to relate clinical
 to spatial characteristics.
 =#
 

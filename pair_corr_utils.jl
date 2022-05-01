@@ -31,7 +31,7 @@ function pair_corr(a; use::Vector{String} = String[])
         # Create a string key for the pair of types
         qq = tuple(q1, q2)
         if !haskey(dit, qq)
-            dit[qq] = []
+            dit[qq] = Float64[]
         end
 
         # The component label for each glom.
@@ -93,8 +93,9 @@ function pair_corr(a; use::Vector{String} = String[])
 end
 
 # Get the normalized pairwise distance quantiles.
-function get_normalized_paircorr(annots)
+function get_normalized_paircorr(annots, idmr)
 
+    # Log the samples that are excluded
     exclude = open("exclude_gnp.txt", "w")
     write(exclude, "Reason,ScannerID,TCPID\n")
 
@@ -103,9 +104,9 @@ function get_normalized_paircorr(annots)
     k1 = ("Atypical", "Atypical")
 
     # Normalize to the pairwise distances between these two types
-    k2 = ("All_glomeruli", "All_glomeruli")
+    k2 = ("Normal", "Normal")
 
-    pc = Dict{String,Array{Float64,1}}()
+    pc = Dict{String,Vector{Float64}}()
     x, xn, xd, idx = [], [], [], []
     for neph_id in keys(annots)
 
@@ -113,8 +114,8 @@ function get_normalized_paircorr(annots)
         fni = parse(Int, neph_id)
 
         # Skip if we can't match this scanner id to a
-        # TCP id.
-        if !haskey(idmr, fni)
+        # TCP id (if idmr is nothing, continue regardless)
+        if !isnothing(idmr) && !haskey(idmr, fni)
             write(exclude, @sprintf("missing_id,%s,missing\n", neph_id))
             continue
         end
@@ -124,10 +125,27 @@ function get_normalized_paircorr(annots)
         # Condense to typical and atypical groups
         b = condense(a)
 
-        dit = pair_corr(b, use = ["All_glomeruli", "Atypical"])
+        dit = pair_corr(b, use = ["Normal", "Atypical"])
 
-        if (length(dit[k1]) == 0) || (length(dit[k2]) == 0)
-            write(exclude, @sprintf("insufficient_data,%s,%s\n", neph_id, idmr[fni]))
+        # If either type is missing, skip and continue
+        fl = false
+        for k in [k1, k2]
+            if !(haskey(dit, k) && length(dit[k]) > 0)
+                n = haskey(dit, k) ? length(dit[k]) : 0
+                write(
+                    exclude,
+                    @sprintf(
+                        "insufficient_data-%s,%d,%s,%s\n",
+                        k,
+                        n,
+                        neph_id,
+                        isnothing(idmr) ? "" : idmr[fni]
+                    )
+                )
+                fl = true
+            end
+        end
+        if fl
             continue
         end
 
@@ -148,7 +166,7 @@ end
 
 # Return a phenotype vector y for variable 'vname', and the corresponding
 # array of normalized distance quantiles.
-function get_response(vname, idpcq, pcq)
+function get_response(vname, idpcq, pcq, idmr)
 
     println(vname)
     # Keep track of the subjects that cannot be matched.

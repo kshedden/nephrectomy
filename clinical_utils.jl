@@ -5,6 +5,7 @@ df1 = open("/home/kshedden/data/Markus_Bitzer/clinical_var_021022.csv.gz") do io
     CSV.read(GzipDecompressorStream(io), DataFrame)
 end
 df1 = rename(df1, "GENDER" => "SEX")
+df1 = rename(df1, "CURRENT_AGE" => "AGE")
 
 df1[:, :Smoking] = replace(
     df1[:, :SMOKING_STATUS],

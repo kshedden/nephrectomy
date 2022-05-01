@@ -1,10 +1,10 @@
-using Serialization, GZip
+using Serialization, CodecZlib
 
 include("defs.jl")
 
 # Read the annotations information into a dictionary.
 # annots maps each sample's id to its annotation data.
-annots = GZip.open("annotations.ser.gz") do io
+annots = open(GzipDecompressorStream, "annotations.ser.gz") do io
     deserialize(io)
 end
 
@@ -14,8 +14,16 @@ function condense(a)
     b = Dict{String,Any}()
 
     # Copy these without change
-    for x in
-        ["All_glomeruli", "All_glomeruli_components", "Tissue", "Capsule", "Cortex", "CMJ"]
+    for x in [
+        "All_glomeruli",
+        "All_glomeruli_components",
+        "Tissue",
+        "Capsule",
+        "Cortex",
+        "CMJ",
+        "Normal",
+        "Normal_components",
+    ]
         if haskey(a, x)
             b[x] = a[x]
         else
