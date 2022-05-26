@@ -87,7 +87,7 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
     fni = parse(Int, neph_id)
 
     # In mode 1, skip samples with no clinical data.
-    if (mode == 1) && !haskey(sid_rownum, fni)
+    if (mode == 1) && !(fni in clin[:, :Scanner_ID])
         return ixp
     end
 
@@ -141,14 +141,14 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
 
     # If available, print some clinical information at the bottom
     # of the graph.
-    if haskey(sid_rownum, fni)
-        ii = sid_rownum[fni]
-        age = df[ii, :AGE]
-        bmi = ismissing(df[ii, :BMI]) ? "" : @sprintf("%.1f", df[ii, :BMI])
-        sex = df[ii, :SEX]
-        htn = df[ii, :htn]
-        dm = df[ii, :dm_med]
-        race = df[ii, :RACE]
+    if fni in clin[:, :Scanner_ID]
+        ii = findfirst(clin[:, :Scanner_ID] .== fni)
+        age = clin[ii, :Age]
+        bmi = ismissing(clin[ii, :BMI]) ? "" : @sprintf("%.1f", clin[ii, :BMI])
+        sex = clin[ii, :Sex_F_M]
+        htn = clin[ii, :Hypertension_No_Yes]
+        dm = clin[ii, :Diabetes_No_Yes]
+        race = clin[ii, :Race]
         la = "age=$(age), sex=$(sex), HTN=$(htn), BMI=$(bmi), DM=$(dm), race=$(race)"
         PyPlot.figtext(0.05, 0.02, la)
     end

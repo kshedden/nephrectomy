@@ -10,7 +10,7 @@ include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
 # Pairwise correlation quantiles
-idpcq, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
+scid, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 
 function funcreg(pm, xtx, x, y)
 
@@ -39,7 +39,7 @@ end
 
 function analyze(vname, ifig, out)
 
-    y, x = get_response(vname, idpcq, pcq)
+    y, x = get_response(vname, scid, pcq)
     n, p = size(x)
 
     # Center the covariates and standardize the dependent variable.

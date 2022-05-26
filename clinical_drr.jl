@@ -3,8 +3,8 @@ Use dimension reduction regression (DRR) to relate clustering patterns of
 atypical and typical glomeruli to clinical endpoints.
 =#
 
-using CodecZlib,
-    CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots, Printf, PyPlot, Dimred
+using CodecZlib, CSV, DataFrames, IterTools, LinearAlgebra
+using UnicodePlots, Printf, PyPlot, Dimred
 
 rm("plots", force = true, recursive = true)
 mkdir("plots")
@@ -28,6 +28,10 @@ function analyze(vname, ifig, out)
     y, x, ids = get_response(vname, scid, pcq)
     n, m = size(x)
 
+    if size(x, 1) < 20
+        return
+    end
+
     # Center the covariates
     for j = 1:m
         x[:, j] .-= mean(x[:, j])
@@ -47,7 +51,7 @@ function analyze(vname, ifig, out)
     xx = x * tm
 
     # Use SIR or PHD to estimate the directions
-    nslice = 20
+    nslice = 10
     ndir = 3
     drm = (y, x) -> sir(y, x; nslice = nslice, ndir = ndir)
     #drm = (y,x)->phd(y, x; ndir=ndir)
@@ -64,9 +68,11 @@ function analyze(vname, ifig, out)
     end
 
     kt = knockoff_test(y, xx, drm)
+    p = kt.Pvalues[:, 1]
+    write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, length(y), p[1], p[2], p[3]))
+
     if kt.Pvalues[1] < 0.1
         println(lineplot(cf[:, 1]))
-        println(kt.Pvalues[:, 1])
     end
 
 end
@@ -74,7 +80,7 @@ end
 function main()
     ifig = 0
     out = open("clinical_results_drr.csv", "w")
-    write(out, "Variable,N,R1,R2,R3\n")
+    write(out, "Variable,N,P1,P2,P3\n")
     for av in names(clin)[6:end]
         println(av)
         ifig = analyze(av, ifig, out)
