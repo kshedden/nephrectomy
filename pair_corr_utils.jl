@@ -93,11 +93,7 @@ function pair_corr(a; use::Vector{String} = String[])
 end
 
 # Get the normalized pairwise distance quantiles.
-function get_normalized_paircorr(annots, idmr)
-
-    # Log the samples that are excluded
-    exclude = open("exclude_gnp.txt", "w")
-    write(exclude, "Reason,ScannerID,TCPID\n")
+function get_normalized_paircorr(annots)
 
     # We are interested in the pairwise distances between these
     # two types
@@ -113,13 +109,6 @@ function get_normalized_paircorr(annots, idmr)
         # Get the scanner ID from the file name
         fni = parse(Int, neph_id)
 
-        # Skip if we can't match this scanner id to a
-        # TCP id (if idmr is nothing, continue regardless)
-        if !isnothing(idmr) && !haskey(idmr, fni)
-            write(exclude, @sprintf("missing_id,%s,missing\n", neph_id))
-            continue
-        end
-
         a = annots[neph_id]
 
         # Condense to typical and atypical groups
@@ -127,25 +116,13 @@ function get_normalized_paircorr(annots, idmr)
 
         dit = pair_corr(b, use = ["Normal", "Atypical"])
 
-        # If either type is missing, skip and continue
-        fl = false
-        for k in [k1, k2]
-            if !(haskey(dit, k) && length(dit[k]) > 0)
-                n = haskey(dit, k) ? length(dit[k]) : 0
-                write(
-                    exclude,
-                    @sprintf(
-                        "insufficient_data-%s,%d,%s,%s\n",
-                        k,
-                        n,
-                        neph_id,
-                        isnothing(idmr) ? "" : idmr[fni]
-                    )
-                )
-                fl = true
-            end
-        end
-        if fl
+        if !(
+            haskey(dit, k1) &&
+            (length(dit[k1]) == 20) &&
+            haskey(dit, k2) &&
+            (length(dit[k2]) == 20)
+        )
+            println("skipping $(neph_id)")
             continue
         end
 
@@ -155,55 +132,9 @@ function get_normalized_paircorr(annots, idmr)
         push!(xd, dit[k2])
     end
 
-    x = hcat(x...)'
-    xn = hcat(xn...)'
-    xd = hcat(xd...)'
-
-    close(exclude)
+    x = copy(hcat(x...)')
+    xn = copy(hcat(xn...)')
+    xd = copy(hcat(xd...)')
 
     return tuple(idx, x, xn, xd)
-end
-
-# Return a phenotype vector y for variable 'vname', and the corresponding
-# array of normalized distance quantiles.
-function get_response(vname, idpcq, pcq, idmr)
-
-    println(vname)
-    # Keep track of the subjects that cannot be matched.
-    fn = @sprintf(
-        "nomatch_%s.csv",
-        replace(string(vname), " " => "", "/" => "", "%" => "", ">" => "")
-    )
-    out = open(fn, "w")
-    y = Union{Float64,Missing}[]
-    ids = []
-    for id in idpcq
-        if haskey(tcp_rownum, idmr[id])
-            ri = tcp_rownum[idmr[id]]
-            push!(ids, [id, idmr[id]])
-            push!(y, df[ri, vname])
-        else
-            # This never happens
-            write(out, @sprintf("%s,%s,missing_id\n", id, idmr[id]))
-            push!(ids, missing)
-            push!(y, missing)
-        end
-    end
-
-    # Save ids with missing phenotype variable
-    for (i, v) in enumerate(y)
-        if ismissing(v) && !ismissing(ids[i])
-            write(out, @sprintf("%s,%s,missing_clinical\n", ids[i][1], ids[i][2]))
-        end
-    end
-    close(out)
-
-    ii = [i for (i, v) in enumerate(y) if !ismissing(v)]
-    y = Vector{Float64}(y[ii])
-    x = Matrix{Float64}(pcq[ii, :])
-
-    ids = ids[ii]
-    id_df = DataFrame(:Scanner_id => [x[1] for x in ids], :TCP_id => [x[2] for x in ids])
-
-    return (y, x, id_df)
 end

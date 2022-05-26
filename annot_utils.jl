@@ -4,7 +4,10 @@ include("defs.jl")
 
 # Read the annotations information into a dictionary.
 # annots maps each sample's id to its annotation data.
-annots = open(GzipDecompressorStream, "annotations.ser.gz") do io
+annots = open(
+    GzipDecompressorStream,
+    "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.ser.gz",
+) do io
     deserialize(io)
 end
 

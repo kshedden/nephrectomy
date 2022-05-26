@@ -32,7 +32,14 @@ function plot_one_component(neph_id::String, ixp::Int)::Int
         end
     end
 
-    colors = Dict(nothing => "red", 1 => "blue", 2 => "green", 3 => "orange", 4 => "yellow")
+    colors = Dict(
+        nothing => "red",
+        1 => "blue",
+        2 => "green",
+        3 => "orange",
+        4 => "yellow",
+        5 => "cyan",
+    )
 
     if haskey(a, "All_glomeruli_components")
         cmp = a["All_glomeruli_components"]

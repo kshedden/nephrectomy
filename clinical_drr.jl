@@ -3,7 +3,8 @@ Use dimension reduction regression (DRR) to relate clustering patterns of
 atypical and typical glomeruli to clinical endpoints.
 =#
 
-using GZip, CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots, Printf, PyPlot, Dimred
+using CodecZlib,
+    CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots, Printf, PyPlot, Dimred
 
 rm("plots", force = true, recursive = true)
 mkdir("plots")
@@ -13,17 +14,18 @@ include("annot_utils.jl")
 include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
-#= 
+
+#=
 Pairwise correlation quantiles
   pcq are the log ratios of atypical/atypical distances versus typical/typical distances
   pcqn are the atypical/atypical distances
   pcqd are the typical/typical distances
 =#
-idpcq, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
+scid, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 
 function analyze(vname, ifig, out)
 
-    y, x, ids = get_response(vname, idpcq, pcq)
+    y, x, ids = get_response(vname, scid, pcq)
     n, m = size(x)
 
     # Center the covariates
@@ -52,7 +54,7 @@ function analyze(vname, ifig, out)
     mf = drm(y, xx)
 
     # Get the coefficients and flip as needed so
-    # that the linear predictors are positively 
+    # that the linear predictors are positively
     # correlated with the trait.
     cf = tm * mf.dirs
     for j = 1:size(cf, 2)
@@ -73,7 +75,7 @@ function main()
     ifig = 0
     out = open("clinical_results_drr.csv", "w")
     write(out, "Variable,N,R1,R2,R3\n")
-    for av in avn
+    for av in names(clin)[6:end]
         println(av)
         ifig = analyze(av, ifig, out)
     end

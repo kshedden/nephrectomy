@@ -1,6 +1,6 @@
 #=
 Use Principal Components Regression (PCR) to relate clinical
-to spatial characteristics.
+and spatial characteristics.
 =#
 
 using CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots
@@ -18,34 +18,7 @@ include("clinical_utils.jl")
 # pcq are the log ratios of atypical/atypical distances versus typical/typical distances
 # pcqn are the atypical/atypical distances
 # pcqd are the typical/typical distances
-idpcq, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
-
-# Age has the most complete coverage so use it to save
-# the scores and loadings.
-function save_age()
-
-    y, x, ids = get_response(:CURRENT_AGE, idpcq, pcq)
-    println(length(y))
-
-    # PCA
-    for j = 1:size(x, 2)
-        x[:, j] .-= mean(x[:, j])
-    end
-    u, s, v = svd(x)
-
-    u_df = DataFrame(
-        :Scanner_id => ids[:, :Scanner_id],
-        :TCP_id => ids[:, :TCP_id],
-        :score1 => u[:, 1],
-        :score2 => u[:, 2],
-        :score3 => u[:, 3],
-    )
-    v_df = DataFrame(:factor1 => v[:, 1], :factor2 => v[:, 2], :factor3 => v[:, 3])
-    CSV.write("age_scores.csv", u_df)
-    CSV.write("age_factors.csv", v_df)
-end
-
-save_age()
+scid, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 
 # Permutation test for correlation coefficients
 function permcor(y, x; nrep = 1000)
@@ -69,22 +42,10 @@ end
 
 function analyze(vname, ifig, out)
 
-    y, x, ids = get_response(vname, idpcq, pcq)
+    y, x, ids = get_response(vname, scid, pcq)
     m = size(x, 2)
-
-    # Mean of r_i(p), informative about whether aa or tt
-    # distances are smaller, irrespective of clinical trait.
-    if vname == :Age
-        xm = mean(x, dims = 1)[:]
-        PyPlot.clf()
-        PyPlot.axes([0.15, 0.1, 0.8, 0.8])
-        PyPlot.grid(true)
-        pp = range(1 / 40, 39 / 40, length = 20)
-        PyPlot.xlabel("Probability point", size = 15)
-        PyPlot.ylabel(raw"${\rm Avg}_i\, r_i(p)$", size = 15)
-        PyPlot.plot(pp, xm, "-")
-        PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
-        ifig += 1
+    if size(x, 1) < 20
+        return ifig
     end
 
     # PCA
@@ -96,8 +57,8 @@ function analyze(vname, ifig, out)
     # Try to make the loadings mostly positive
     for j = 1:3
         if sum(v[:, j] .< 0) > sum(v[:, j] .> 0)
-            v[:, j] = -v[:, j]
-            u[:, j] = -u[:, j]
+            v[:, j] .*= -1
+            u[:, j] .*= -1
         end
     end
 
@@ -127,26 +88,6 @@ function analyze(vname, ifig, out)
     PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
     ifig += 1
 
-    # For age only, plot the distance quantiles
-    if vname == :Age
-        pr = collect(range(1 / m, 1 - 1 / m, length = m))
-        for (i, id) in enumerate(idpcq)
-            PyPlot.clf()
-            PyPlot.axes([0.1, 0.15, 0.75, 0.8])
-            PyPlot.grid(true)
-            PyPlot.title(id)
-            PyPlot.plot(pr, pcqn[i, :] / 1000, label = "AA")
-            PyPlot.plot(pr, pcqd[i, :] / 1000, label = "TT")
-            ha, lb = PyPlot.gca().get_legend_handles_labels()
-            leg = PyPlot.figlegend(ha, lb, "center right")
-            leg.draw_frame(false)
-            PyPlot.xlabel("Probability", size = 15)
-            PyPlot.ylabel("Quantile", size = 15)
-            PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
-            ifig += 1
-        end
-    end
-
     write(out, @sprintf("%s,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", vname, c...))
 
     return ifig
@@ -156,7 +97,7 @@ function main()
     ifig = 0
     out = open("clinical_pcr_results.csv", "w")
     write(out, "Variable,N,R1,Z1,P1,R2,Z2,P2,R3,Z3,P3\n")
-    for av in avn
+    for av in names(clin)[6:end]
         ifig = analyze(av, ifig, out)
     end
     close(out)

@@ -109,7 +109,7 @@ function main()
     ifig = 0
     out = open("clinical_funcreg_results.csv", "w")
     write(out, "Variable,Lambda,Parameteric-P-value,Permutation-P-value,Correlation\n")
-    for av in avn
+    for av in names(clin)[6:end]
         ifig = analyze(av, ifig, out)
     end
     close(out)

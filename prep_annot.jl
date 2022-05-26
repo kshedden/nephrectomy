@@ -1,5 +1,5 @@
 using TarIterators, LightXML, CodecZlib, PolygonOps, StaticArrays
-using Statistics, Serialization, Printf
+using Statistics, Serialization, Printf, JSON
 
 # Path to annotations file
 pa = "/home/kshedden/data/Markus_Bitzer/Annotations"
@@ -134,7 +134,9 @@ end
 
 function process_batch(fn, annots)
     fn = joinpath(pa, fn)
-    println("fn=", fn)
+    if !endswith(fn, ".tar.gz")
+        return
+    end
     open(GzipDecompressorStream, fn) do io
         ti = TarIterator(io, :file)
 
@@ -142,6 +144,7 @@ function process_batch(fn, annots)
             p = h.path
             pp = splitext(p)
             println(pp[1])
+
             @assert length(pp) == 2 && pp[2] == ".xml"
             x = read(iox, String)
             y = parse_annot(x)
@@ -160,6 +163,9 @@ function scan_batches()
     fx = Dict{String,Int}()
 
     for f in readdir(pa)
+        if !endswith(f, ".tar.gz")
+            continue
+        end
         fn = joinpath(pa, f)
         println("fn=", fn)
         open(GzipDecompressorStream, fn) do io
@@ -192,8 +198,19 @@ function process_batches()
     end
 
     println(@sprintf("%d samples processed\n", length(annots)))
-    open(GzipCompressorStream, "annotations.ser.gz", "w") do io
+    open(
+        GzipCompressorStream,
+        "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.ser.gz",
+        "w",
+    ) do io
         serialize(io, annots)
+    end
+    open(
+        GzipCompressorStream,
+        "/home/kshedden/data/Markus_Bitzer/Annotations/annotations.json.gz",
+        "w",
+    ) do io
+        JSON.print(io, annots)
     end
 end
 

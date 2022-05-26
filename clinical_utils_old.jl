@@ -1,8 +1,11 @@
 using CodecZlib, CSV, DataFrames
 
 # Clinical variables
-df1 = open("/home/kshedden/data/Markus_Bitzer/clinical_var_021022.csv.gz") do io
-    CSV.read(GzipDecompressorStream(io), DataFrame)
+df1 = open(
+    GzipDecompressorStream,
+    "/home/kshedden/data/Markus_Bitzer/clinical_var_021022.csv.gz",
+) do io
+    CSV.read(io, DataFrame)
 end
 df1 = rename(df1, "GENDER" => "SEX")
 df1 = rename(df1, "CURRENT_AGE" => "AGE")
@@ -36,8 +39,8 @@ df[:, :NonWhite] = replace(df[:, :RACE] .!= "White or Caucasian", true => 1, fal
 # Map between id's used in the clinical and annotation files
 # idm maps TCP ID to Scanner ID
 # idmr maps Scanner ID to TCP ID
-idm, idmr = open("id_map.csv.gz") do io
-    dx = CSV.read(GzipDecompressorStream(io), DataFrame)
+idm, idmr = open(GzipDecompressorStream, "id_map.csv.gz") do io
+    dx = CSV.read(io, DataFrame)
     idm = Dict{String,Int}()
     idmr = Dict{Int,String}()
     for r in eachrow(dx)
@@ -52,7 +55,7 @@ idm, idmr = open("id_map.csv.gz") do io
 end
 
 # Scanner id's
-df[:, :sid] = [haskey(idm, y) ? idm[y] : missing for y in df[:, :TCP_ID]]
+df[:, :sid] = [get(idm, y, missing) for y in df[:, :TCP_ID]]
 
 # Map from TCP id to row number in df
 tcp_rownum = Dict{String,Int}()
