@@ -67,11 +67,11 @@ function analyze(vname, ifig, out)
         end
     end
 
-    kt = knockoff_test(y, xx, drm)
-    p = kt.Pvalues[:, 1]
+    st = sir_test(mf)
+    p = st.Pvalues
     write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, length(y), p[1], p[2], p[3]))
 
-    if kt.Pvalues[1] < 0.1
+    if st.Pvalues[1] < 0.1
         println(lineplot(cf[:, 1]))
     end
 
