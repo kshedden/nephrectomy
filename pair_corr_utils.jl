@@ -38,15 +38,10 @@ function pair_corr(a; use::Vector{String} = String[])
         cmp1 = a["$(q1)_components"]
         cmp2 = a["$(q2)_components"]
 
-        # The bounding boxes for each category.
+        # The centroids for each category.
         u1, u2 = a[q1], a[q2]
 
         for (k1, v1) in enumerate(u1)
-
-            # Reduce each bounding box in category 1 to its centroid
-            x1 = mean(v1[1, :])
-            y1 = mean(v1[2, :])
-
             for (k2, v2) in enumerate(u2)
 
                 # When comparing within a category, only assess each pair of gloms
@@ -62,12 +57,8 @@ function pair_corr(a; use::Vector{String} = String[])
                     continue
                 end
 
-                # Reduce each bounding box in category 2 to its centroid
-                x2 = mean(v2[1, :])
-                y2 = mean(v2[2, :])
-
                 # Distance between two glomeruli
-                d = sqrt((x1 - x2)^2 + (y1 - y2)^2)
+                d = norm(v1 - v2)
 
                 # If the gloms are too close, it is probably the same
                 # glom listed twice so exclude.
@@ -110,11 +101,7 @@ function get_normalized_paircorr(annots)
         fni = parse(Int, neph_id)
 
         a = annots[neph_id]
-
-        # Condense to typical and atypical groups
-        b = condense(a)
-
-        dit = pair_corr(b, use = ["Normal", "Atypical"])
+        dit = pair_corr(a, use = ["Normal", "Atypical"])
 
         if !(
             haskey(dit, k1) &&

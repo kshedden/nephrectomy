@@ -9,8 +9,14 @@ include("annot_utils.jl")
 include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
+annotsx = glom_centroids(annots)
+annotsx = Dict(k => condense(v) for (k, v) in annotsx)
+
+# Only consider samples with a minimum number of total glomeruli
+annotsx = Dict(k => v for (k, v) in annotsx if length(v["All_glomeruli"]) > 100)
+
 # Pairwise correlation quantiles
-scid, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
+scid, pcq, pcqn, pcqd = get_normalized_paircorr(annotsx)
 
 function funcreg(pm, xtx, x, y)
 
@@ -86,7 +92,10 @@ function analyze(vname, ifig, out)
         pv1 = mean(csa .>= cs)
 
         r = cor(yh, y)
-        write(out, @sprintf("%s,%.2f,%.3f,%.3f,%.3f\n", vname, la, pv, pv1, r))
+        write(
+            out,
+            @sprintf("%s,%d,%.2f,%.3f,%.3f,%.3f\n", vname, length(y), la, pv, pv1, r)
+        )
     end
 
     # Plot the coefficient vector
@@ -115,7 +124,7 @@ end
 function main()
     ifig = 0
     out = open("clinical_funcreg_results.csv", "w")
-    write(out, "Variable,Lambda,Parameteric-P-value,Permutation-P-value,Correlation\n")
+    write(out, "Variable,N,Lambda,Parameteric-P-value,Permutation-P-value,Correlation\n")
     for av in names(clin)[6:end]
         ifig = analyze(av, ifig, out)
     end
