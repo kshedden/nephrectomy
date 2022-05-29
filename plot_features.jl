@@ -8,15 +8,15 @@ rm("plots", force = true, recursive = true)
 mkdir("plots")
 
 # Plot as points
-ptf =
-    ["All_glomeruli", "Normal", "FGGS", "Ischemic", "FSGS", "BSPC", "Imploding", "Atypical"]
+ptf = ["All_glomeruli", "Normal", "FGGS", "Ischemic", "FSGS",
+       "BSPC", "Imploding", "Atypical", "Empty BC"]
 
 # Plot as paths
 paf = ["Tissue", "Capsule", "CMJ", "Cortex"]
 
 # Make a plot showing the disconneced components of
 # each nephrectomy.
-function plot_one_component(neph_id::String, ixp::Int)::Int
+function plot_components(neph_id::String, ixp::Int)::Int
 
     a = annots[neph_id]
 
@@ -45,7 +45,7 @@ function plot_one_component(neph_id::String, ixp::Int)::Int
         cmp = a["All_glomeruli_components"]
         uc = unique(cmp)
         for (j, u) in enumerate(uc)
-            xx, yy = [], []
+            xx, yy = Float64[], Float64[]
             for (i, g) in enumerate(a["All_glomeruli"])
 
                 if cmp[i] != u
@@ -196,7 +196,7 @@ function plot_components()
 
     ixp = 0
     for neph_id in keys(annots)
-        ixp = plot_one_component(neph_id, ixp)
+        ixp = plot_components(neph_id, ixp)
     end
 
     f = [@sprintf("plots/%03d.pdf", j) for j = 0:ixp-1]
@@ -210,6 +210,6 @@ plot_components()
 # If mode is 1, collapse all atypical glom types into one category.
 level = 1
 for mode in [0, 1]
-    #DEBUG plot_sorted(mode, level, "nephrectomies_sorted_$(level).pdf")
+    plot_sorted(mode, level, "nephrectomies$(level)_sorted.pdf")
     plot_all(mode, "nephrectomies$(mode).pdf")
 end

@@ -44,13 +44,13 @@ function parse_annot(raw_xml::String)
     end
 
     free(xd)
-    rd = dedup(rd)
+    rd = create_normal!(rd)
     return rd
 end
 
 # Create a "normal" category consisting of glomeruli that are in "All_glomeruli"
 # but not in any atypical class.
-function dedup(rd)
+function create_normal!(rd)
 
     if !haskey(rd, "All_glomeruli")
         return rd
@@ -75,8 +75,8 @@ function dedup(rd)
         z = SVector{2,Float64}(px, py)
         di = Inf
         for u in atp
-            d = sqrt(sum(abs2, u - z))
-            di = d < di ? d : di
+            d = norm(u - z)
+            di = min(d, di)
         end
         if di > 200
             push!(nrml, x)

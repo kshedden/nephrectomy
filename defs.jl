@@ -29,6 +29,7 @@ colors = Dict{String,String}(
     "Ischemic" => "cyan",
     "Normal" => "black",
     "Imploding" => "red",
+    "Empty BC" => "lime",
     "Capsule" => "purple",
     "CMJ" => "orange",
     "Tissue" => "yellow",

@@ -17,6 +17,7 @@ function pair_corr(a; use::Vector{String} = String[])
 
     # Loop over all distinct pairs of types
     m = length(ptp)
+    nreject = 0
     for jj in product(1:m, 1:m)
 
         j1, j2 = jj[1], jj[2]
@@ -62,11 +63,17 @@ function pair_corr(a; use::Vector{String} = String[])
 
                 # If the gloms are too close, it is probably the same
                 # glom listed twice so exclude.
-                if d > 10
+                if d > 100
                     push!(dit[qq], d)
+                else
+                    nreject += 1
                 end
             end
         end
+    end
+
+    if nreject > 0
+        println("$(nreject) glom pairs were too close.")
     end
 
     # Reduce each list of correlations to a set of quantiles
