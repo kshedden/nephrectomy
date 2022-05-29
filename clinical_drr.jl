@@ -14,7 +14,6 @@ include("annot_utils.jl")
 include("pair_corr_utils.jl")
 include("clinical_utils.jl")
 
-
 #=
 Pairwise correlation quantiles
   pcq are the log ratios of atypical/atypical distances versus typical/typical distances
