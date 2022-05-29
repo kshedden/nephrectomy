@@ -1,10 +1,8 @@
 using CodecZlib, CSV, DataFrames
 
 # Clinical variables
-clin = open(
-    GzipDecompressorStream,
-    "/home/kshedden/data/Markus_Bitzer/Spatial_IDs.csv.gz",
-) do io
+pa = "/home/kshedden/data/Markus_Bitzer"
+clin = open(GzipDecompressorStream, joinpath(pa, "Spatial_IDs.csv.gz")) do io
     CSV.read(io, DataFrame)
 end
 
@@ -12,8 +10,7 @@ end
 # array of normalized distance quantiles.
 function get_response(vname, scid, pcq)
 
-    println(vname)
-
+    # Map from scanner id to clinical variable value
     cm = Dict()
     for r in eachrow(clin)
         if !ismissing(r[vname])
@@ -29,7 +26,7 @@ function get_response(vname, scid, pcq)
             push!(x, pcq[j, :])
         end
     end
-    x = hcat(x...)'
+    x = copy(hcat(x...)')
 
     return y, x, ids
 end

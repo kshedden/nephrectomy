@@ -40,7 +40,14 @@ end
 function analyze(vname, ifig, out)
 
     y, x = get_response(vname, scid, pcq)
+
+    # Keep only the lower quantiles
+    x = x[:, 1:10]
+
     n, p = size(x)
+    if n < 20
+        return ifig
+    end
 
     # Center the covariates and standardize the dependent variable.
     for j = 1:p
@@ -82,7 +89,7 @@ function analyze(vname, ifig, out)
         write(out, @sprintf("%s,%.2f,%.3f,%.3f,%.3f\n", vname, la, pv, pv1, r))
     end
 
-    # Plot the PC loading vector
+    # Plot the coefficient vector
     PyPlot.clf()
     PyPlot.axes([0.13, 0.12, 0.7, 0.8])
     PyPlot.grid(true)

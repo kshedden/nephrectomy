@@ -40,9 +40,13 @@ function permcor(y, x; nrep = 1000)
 end
 
 
-function analyze(vname, ifig, out)
+function analyze(vname, ifig, out; ncomp = 4)
 
     y, x, ids = get_response(vname, scid, pcq)
+
+    # Keep only the lower quantiles
+    x = x[:, 1:10]
+
     m = size(x, 2)
     if size(x, 1) < 20
         return ifig
@@ -55,7 +59,7 @@ function analyze(vname, ifig, out)
     u, s, v = svd(x)
 
     # Try to make the loadings mostly positive
-    for j = 1:3
+    for j = 1:ncomp
         if sum(v[:, j] .< 0) > sum(v[:, j] .> 0)
             v[:, j] .*= -1
             u[:, j] .*= -1
@@ -65,7 +69,7 @@ function analyze(vname, ifig, out)
     # Obtain the correlation coefficients between the PC score and
     # the clinical trait.
     c = Float64[length(y),]
-    for j = 1:3
+    for j = 1:ncomp
         r, z, p = permcor(y, u[:, j])
         push!(c, r, z, p)
     end
@@ -76,7 +80,7 @@ function analyze(vname, ifig, out)
     PyPlot.grid(true)
     pr = collect(range(0, 1, length = size(v, 1)))
     pr = pr ./ maximum(pr)
-    for j = 1:3
+    for j = 1:ncomp
         PyPlot.plot(pr, v[:, j], label = @sprintf("%d", j))
     end
     ha, lb = PyPlot.gca().get_legend_handles_labels()
@@ -88,17 +92,23 @@ function analyze(vname, ifig, out)
     PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
     ifig += 1
 
-    write(out, @sprintf("%s,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", vname, c...))
+    row = [vname, @sprintf("%d", c[1])]
+    row = vcat(row, [@sprintf("%.4f", x) for x in c[2:end]])
+    write(out, join(row, ","))
+    write(out, "\n")
 
     return ifig
 end
 
 function main()
+    ncomp = 4
     ifig = 0
     out = open("clinical_pcr_results.csv", "w")
-    write(out, "Variable,N,R1,Z1,P1,R2,Z2,P2,R3,Z3,P3\n")
+    head = "Variable,N," * join(["R$(j),Z$(j),P$(j)" for j = 1:ncomp], ",")
+    write(out, head)
+    write(out, "\n")
     for av in names(clin)[6:end]
-        ifig = analyze(av, ifig, out)
+        ifig = analyze(av, ifig, out; ncomp = ncomp)
     end
     close(out)
     return ifig

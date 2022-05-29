@@ -25,10 +25,13 @@ scid, pcq, pcqn, pcqd = get_normalized_paircorr(annots)
 function analyze(vname, ifig, out)
 
     y, x, ids = get_response(vname, scid, pcq)
+
+    # Only use the lower quantiles
+    x = x[:, 1:10]
     n, m = size(x)
 
     if size(x, 1) < 20
-        return
+        return ifig
     end
 
     # Center the covariates
@@ -37,17 +40,17 @@ function analyze(vname, ifig, out)
     end
 
     # Functional PCA
+    npc = 5
     fm = zeros(m, m - 2)
     for j = 1:m-2
         fm[j:j+2, j] = [1, -2, 1]
     end
-    w = 100.0 # Smoothing penalty weight
-    a, tm = eigen(cov(x) - w * fm * fm')
+    w = 10.0 # Smoothing penalty weight
+    a, load = eigen(cov(x) - w * fm * fm')
     ii = sortperm(a, rev = true)
     a = a[ii]
-    tm = tm[:, ii]
-    tm = tm[:, 1:3]
-    xx = x * tm
+    load = load[:, ii[1:npc]]
+    xx = x * load
 
     # Use SIR or PHD to estimate the directions
     nslice = 10
@@ -59,12 +62,31 @@ function analyze(vname, ifig, out)
     # Get the coefficients and flip as needed so
     # that the linear predictors are positively
     # correlated with the trait.
-    cf = tm * mf.dirs
+    cf = load * mf.dirs
     for j = 1:size(cf, 2)
         if cor(y, xx * mf.dirs[:, j]) < 0
             cf[:, j] .*= -1
         end
     end
+
+    # Plot the coefficient vector
+    PyPlot.clf()
+    PyPlot.axes([0.13, 0.12, 0.75, 0.8])
+    PyPlot.grid(true)
+    pr = collect(range(0, 1, length = 20))
+    pr = pr ./ maximum(pr)
+    pr = pr[1:10]
+    for j = 1:3
+        PyPlot.plot(pr, load * mf.dirs[:, j], label = @sprintf("%d", j))
+    end
+    ha, lb = PyPlot.gca().get_legend_handles_labels()
+    leg = PyPlot.figlegend(ha, lb, "center right")
+    leg.draw_frame(false)
+    PyPlot.title(vname)
+    PyPlot.xlabel("Probability point", size = 15)
+    PyPlot.ylabel("Coefficient", size = 15)
+    PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+    ifig += 1
 
     st = sir_test(mf)
     p = st.Pvalues
@@ -74,11 +96,12 @@ function analyze(vname, ifig, out)
         println(lineplot(cf[:, 1]))
     end
 
+    return ifig
 end
 
 function main()
     ifig = 0
-    out = open("clinical_results_drr.csv", "w")
+    out = open("clinical_drr_results.csv", "w")
     write(out, "Variable,N,P1,P2,P3\n")
     for av in names(clin)[6:end]
         println(av)
@@ -90,6 +113,7 @@ end
 
 ifig = main()
 
-#f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
-#c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_loadings.pdf $f`
-#run(c)
+f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
+c =
+    `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_drr_loadings.pdf $f`
+run(c)
