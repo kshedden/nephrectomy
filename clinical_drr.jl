@@ -76,8 +76,8 @@ function analyze(vname, ifig, out)
     pr = collect(range(0, 1, length = 20))
     pr = pr ./ maximum(pr)
     pr = pr[1:10]
-    for j = 1:3
-        PyPlot.plot(pr, load * mf.dirs[:, j], label = @sprintf("%d", j))
+    for j = 1:size(cf, 2)
+        PyPlot.plot(pr, cf[:, j], label = @sprintf("%d", j))
     end
     ha, lb = PyPlot.gca().get_legend_handles_labels()
     leg = PyPlot.figlegend(ha, lb, "center right")
@@ -88,13 +88,15 @@ function analyze(vname, ifig, out)
     PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
     ifig += 1
 
+    # Significance tests
     st = sir_test(mf)
     p = st.Pvalues
-    write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, length(y), p[1], p[2], p[3]))
 
     if st.Pvalues[1] < 0.1
         println(lineplot(cf[:, 1]))
     end
+
+    write(out, @sprintf("%s,%d,%f,%f,%f\n", vname, length(y), p[1], p[2], p[3]))
 
     return ifig
 end
@@ -103,6 +105,8 @@ function main()
     ifig = 0
     out = open("clinical_drr_results.csv", "w")
     write(out, "Variable,N,P1,P2,P3\n")
+
+    # Loop through the clinical variables, which are outcomes for the regressions.
     for av in names(clin)[6:end]
         println(av)
         ifig = analyze(av, ifig, out)

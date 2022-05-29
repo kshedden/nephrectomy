@@ -2,14 +2,14 @@ using Serialization, CodecZlib, StaticArrays, Statistics
 
 include("defs.jl")
 
-# Read the annotations information into a dictionary.
+# Read the annotation information into a dictionary.
 # annots maps each sample's id to its annotation data.
 pa = "/home/kshedden/data/Markus_Bitzer/Annotations"
 annots = open(GzipDecompressorStream, joinpath(pa, "annotations.ser.gz")) do io
     deserialize(io)
 end
 
-# Reduce the data to centroids
+# Reduce each glom bounding box to its centroid
 function glom_centroids(annots)
     annotsx = Dict()
     for (k, g) in annots
