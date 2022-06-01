@@ -8,8 +8,17 @@ rm("plots", force = true, recursive = true)
 mkdir("plots")
 
 # Plot as points
-ptf = ["All_glomeruli", "Normal", "FGGS", "Ischemic", "FSGS",
-       "BSPC", "Imploding", "Atypical", "Empty BC"]
+ptf = [
+    "All_glomeruli",
+    "Normal",
+    "FGGS",
+    "Ischemic",
+    "FSGS",
+    "BSPC",
+    "Imploding",
+    "Atypical",
+    "Empty BC",
+]
 
 # Plot as paths
 paf = ["Tissue", "Capsule", "CMJ", "Cortex"]

@@ -57,7 +57,7 @@ function condense(a)
     # Combine these glomerular types into one category
     b["Atypical"] = []
     b["Atypical_components"] = []
-    for x in ["FSGS", "FGGS", "Ischemic", "Imploding"]
+    for x in atypical_glom_types
         if haskey(a, x)
             push!(b["Atypical"], a[x]...)
             push!(b["Atypical_components"], a["$(x)_components"]...)

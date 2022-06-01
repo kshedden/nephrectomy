@@ -60,11 +60,11 @@ function run_depth(neph, depth)
 end
 
 # Get the median depth for each glom type within each nephrectomy
-function get_depths()
+function get_depths(depth)
     idx, res = [], []
     for (k, v) in annotsx
         push!(idx, k)
-        r = run_depth(v, l2_depth)
+        r = run_depth(v, depth)
         push!(res, r)
     end
 
@@ -136,6 +136,25 @@ function clinical_analysis(depths)
     return crslt
 end
 
-depths = get_depths()
-drslt = depth_analysis(depths)
-crslt = clinical_analysis(depths)
+function dfclean(df)
+    x = split(string(df), "\n")
+    x = vcat(x[2], x[4:end])
+    x = join(x, "\n")
+    return x
+end
+
+out = open("depth.txt", "w")
+
+for (jd, depth) in enumerate([l2_depth, tukey_depth])
+    depths = get_depths(depth)
+    drslt = depth_analysis(depths)
+    crslt = clinical_analysis(depths)
+    write(out, @sprintf("=== %s ===\n\n", jd == 1 ? "L2 depth" : "Tukey halfspace depth"))
+    write(out, "Differences in median depth based on glomerulus type:\n")
+    write(out, dfclean(drslt))
+    write(out, "\n\nAssociations between depth and clinical variables:\n")
+    write(out, dfclean(crslt))
+    write(out, "\n\n")
+end
+
+close(out)
