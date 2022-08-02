@@ -32,13 +32,13 @@ function analyze(vname, ifig, out)
 
     y, x, ids = get_response(vname, scid, pcq)
 
-    # Only use the lower quantiles
-    x = x[:, 1:10]
-    n, m = size(x)
-
     if size(x, 1) < 20
         return ifig
     end
+
+    # Only use the lower quantiles
+    x = x[:, 1:10]
+    n, m = size(x)
 
     # Center the covariates
     for j = 1:m

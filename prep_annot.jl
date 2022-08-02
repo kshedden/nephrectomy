@@ -1,5 +1,5 @@
 using TarIterators, LightXML, CodecZlib, PolygonOps, StaticArrays
-using Statistics, Serialization, Printf, JSON
+using Statistics, Serialization, Printf, JSON, LinearAlgebra
 
 # Path to annotations file
 pa = "/home/kshedden/data/Markus_Bitzer/Annotations"
@@ -113,7 +113,7 @@ function find_components(anno)
         end
 
         gloms = anno[g]
-        cmp = Vector{Union{Int,Nothing}}()
+        cmp = Vector{Union{Int,Nothing}}(undef, length(gloms))
 
         for (i, glom) in enumerate(gloms)
             # The centroid of the glomerulus
@@ -121,9 +121,9 @@ function find_components(anno)
 
             ix = [j for (j, pl) in enumerate(polys) if inpolygon(c, pl) != 0]
             if length(ix) == 1
-                push!(cmp, ix[1])
+                cmp[i] = ix[1]
             else
-                push!(cmp, nothing)
+                cmp[i] = nothing
             end
         end
         components[g] = cmp
@@ -132,18 +132,17 @@ function find_components(anno)
     return components
 end
 
-function process_batch(fn, annots)
-    fn = joinpath(pa, fn)
-    if !endswith(fn, ".tar.gz")
-        return
-    end
+function build_annotations(fn)
+
+    annots = Dict{String,Any}()
+
     open(GzipDecompressorStream, fn) do io
         ti = TarIterator(io, :file)
 
         for (h, iox) in ti
             p = h.path
             pp = splitext(p)
-            println(pp[1])
+            println("ID=", pp[1])
 
             @assert length(pp) == 2 && pp[2] == ".xml"
             x = read(iox, String)
@@ -155,47 +154,14 @@ function process_batch(fn, annots)
             annots[pp[1]] = y
         end
     end
+
     return annots
 end
 
-function scan_batches()
+function main()
 
-    fx = Dict{String,Int}()
-
-    for f in readdir(pa)
-        if !endswith(f, ".tar.gz")
-            continue
-        end
-        fn = joinpath(pa, f)
-        println("fn=", fn)
-        open(GzipDecompressorStream, fn) do io
-            ti = TarIterator(io, :file)
-            for (h, iox) in ti
-                p = h.path
-                if haskey(fx, p)
-                    msg = @sprintf("Sample %s appears in multiple batches\n", p)
-                    println(msg)
-                    fx[p] += 1
-                else
-                    fx[p] = 1
-                end
-            end
-        end
-    end
-    println(@sprintf("%d total samples found\n", length(fx)))
-end
-
-
-function process_batches()
-
-    annots = Dict{String,Any}()
-
-    fl = readdir(pa)
-    for fn in fl
-        if endswith(fn, ".tar.gz")
-            annots = process_batch(fn, annots)
-        end
-    end
+    fn = joinpath(pa, "annotations.tar.gz")
+    annots = build_annotations(fn)
 
     println(@sprintf("%d samples processed\n", length(annots)))
     open(
@@ -212,7 +178,8 @@ function process_batches()
     ) do io
         JSON.print(io, annots)
     end
+
+    return annots
 end
 
-scan_batches()
-process_batches()
+annots = main()

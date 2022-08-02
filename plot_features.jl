@@ -20,9 +20,6 @@ ptf = [
     "Empty BC",
 ]
 
-# Plot as paths
-paf = ["Tissue", "Capsule", "CMJ", "Cortex"]
-
 # Make a plot showing the disconneced components of
 # each nephrectomy.
 function plot_components(neph_id::String, ixp::Int)::Int
@@ -35,9 +32,14 @@ function plot_components(neph_id::String, ixp::Int)::Int
     PyPlot.axes([0.1, 0.1, 0.7, 0.8])
     PyPlot.title("$(fni)")
 
-    if haskey(a, "Cortex")
-        for (j, u) in enumerate(a["Cortex"])
-            PyPlot.plot(u[1, :], u[2, :], "-"; color = "grey", lw = 3)
+    # Boundary features
+    for q in boundary_types
+        if haskey(a, q)
+            col = q == "Cortex" ? "black" : "grey"
+            lw = q == "Cortex" ? 3 : 1
+            for (j, u) in enumerate(a[q])
+                PyPlot.plot(u[1, :], u[2, :], "-"; color = col, lw = lw)
+            end
         end
     end
 
@@ -50,29 +52,35 @@ function plot_components(neph_id::String, ixp::Int)::Int
         5 => "cyan",
     )
 
-    if haskey(a, "All_glomeruli_components")
-        cmp = a["All_glomeruli_components"]
+    for ky in glom_types
+
+        kyc = "$(ky)_components"
+        if !(haskey(a, ky) && haskey(a, kyc))
+            continue
+        end
+
+        cmp = a[kyc]
         uc = unique(cmp)
         for (j, u) in enumerate(uc)
-            xx, yy = Float64[], Float64[]
-            for (i, g) in enumerate(a["All_glomeruli"])
-
-                if cmp[i] != u
-                    continue
+            if ky in glom_types
+                xx, yy = Float64[], Float64[]
+                for (i, g) in enumerate(a[ky])
+                    if cmp[i] != u
+                        continue
+                    end
+                    push!(xx, mean(g[1, :]))
+                    push!(yy, mean(g[2, :]))
                 end
-
-                push!(xx, mean(g[1, :]))
-                push!(yy, mean(g[2, :]))
+                PyPlot.plot(
+                    xx,
+                    yy,
+                    "o",
+                    mfc = "none",
+                    color = colors[u],
+                    alpha = 0.5,
+                    zorder = 2,
+                )
             end
-            PyPlot.plot(
-                xx,
-                yy,
-                "o",
-                mfc = "none",
-                color = colors[u],
-                alpha = 0.5,
-                zorder = 2,
-            )
         end
     end
 
@@ -105,7 +113,7 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
     PyPlot.title("$(fni)")
 
     # Features to be plotted with a path
-    for k in paf
+    for k in boundary_types
         if haskey(a, k)
             v = a[k]
             for (j, u) in enumerate(v)

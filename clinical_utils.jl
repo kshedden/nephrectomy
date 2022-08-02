@@ -6,6 +6,17 @@ clin = open(GzipDecompressorStream, joinpath(pa, "Spatial_IDs.csv.gz")) do io
     CSV.read(io, DataFrame)
 end
 
+egfr = open(
+    GzipDecompressorStream,
+    joinpath(pa, "eGFR  - updated formula.xlsx - Sheet1.csv.gz"),
+) do io
+    CSV.read(io, DataFrame)
+end
+egfr = egfr[:, [:Precise_ID, :Baseline_eGFR]]
+egfr = rename(egfr, :Baseline_eGFR => :Revised_eGFR)
+
+clin = leftjoin(clin, egfr, on = :Precise_ID)
+
 # Return a phenotype vector y for variable 'vname', and the corresponding
 # array of normalized distance quantiles.
 function get_response(vname, scid, pcq)

@@ -47,13 +47,14 @@ function analyze(vname, ifig, out)
 
     y, x = get_response(vname, scid, pcq)
 
-    # Keep only the lower quantiles
-    x = x[:, 1:10]
-
     n, p = size(x)
     if n < 20
         return ifig
     end
+
+    # Keep only the lower quantiles
+    x = x[:, 1:10]
+    n, p = size(x)
 
     # Center the covariates and standardize the dependent variable.
     for j = 1:p

@@ -71,9 +71,7 @@ end
 function major_components(annots)
 
     b = Dict()
-
     for k in keys(annots)
-
         b[k] = Dict()
 
         # Find the largest component
@@ -97,5 +95,6 @@ function major_components(annots)
             end
         end
     end
+
     return b
 end

@@ -21,6 +21,8 @@ trans = Dict{String,String}(
 atypical_glom_types = ["FGGS", "FSGS", "BSPC", "Ischemic", "Imploding", "Empty BC"]
 glom_types = vcat(["All_glomeruli", "Normal"], atypical_glom_types)
 
+boundary_types = ["Capsule", "CMJ", "Cortex", "Tissue"]
+
 colors = Dict{String,String}(
     "All_glomeruli" => "grey",
     "FGGS" => "blue",

@@ -63,7 +63,7 @@ function pair_corr(a; use::Vector{String} = String[])
 
                 # If the gloms are too close, it is probably the same
                 # glom listed twice so exclude.
-                if d > 100
+                if d > 500 # 100-500 gives similar results
                     push!(dit[qq], d)
                 else
                     nreject += 1
@@ -77,10 +77,16 @@ function pair_corr(a; use::Vector{String} = String[])
     end
 
     # Reduce each list of correlations to a set of quantiles
+    # Be careful not to let the extreme probabilities give us
+    # the max/min.
     m = 20
-    pp = collect(range(1 / m, 1 - 1 / m, length = m))
+    m2 = m * (m - 1) / 2
+    pp = collect(range(10 / m2, 1 - 10 / m2, length = m))
     for (k, v) in dit
-        if length(v) >= 20
+
+        # v consists of all pairwise distances, so we want at least
+        # 20 distinct glomeruli to proceed
+        if length(v) >= 20 * 19 / 2
             dit[k] = [quantile(v, p) for p in pp]
         else
             dit[k] = [] # too little data to work with
