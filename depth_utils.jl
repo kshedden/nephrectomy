@@ -118,7 +118,7 @@ end
 
 # Calculate a quantile of the depths for each glom type in nephrectomy 'neph' using
 # the given depth function.
-function calc_depth_quantile(neph, depth, ref; pp = 0.5)
+function calc_depth_quantile(neph, depthfun, ref, gt::Vector{String}; pp = 0.5)
 
     # Map glom types to a quantile of the depths for that glom type.
     r = Dict{String,Union{Missing,Float64}}()
@@ -128,12 +128,15 @@ function calc_depth_quantile(neph, depth, ref; pp = 0.5)
         return r
     end
 
-    for k in keys(neph)
-        if k in glom_types || k == "Atypical"
-            di = [depth(z, ref) for z in neph[k]]
-            if length(di) > 0
-                r[k] = length(di) > 0 ? quantile(di, pp) : missing
-            end
+    for k in gt
+
+        if !haskey(neph, k)
+            continue
+        end
+
+        di = [depthfun(z, ref) for z in neph[k]]
+        if length(di) > 0
+            r[k] = length(di) > 0 ? quantile(di, pp) : missing
         end
     end
 
@@ -141,7 +144,7 @@ function calc_depth_quantile(neph, depth, ref; pp = 0.5)
 end
 
 # Create a dataframe from a vector of dictionaries.
-function make_df(res, pp)
+function make_df(res, pp::Float64)
 
     # Glom types
     ky = union([keys(r) for r in res]...)
@@ -164,7 +167,7 @@ end
 
 # Get the pp'th quantile of the depths for the glomeruli of each type
 # within each nephrectomy
-function get_depth_quantile(depthfun, ref, annots; pp = 0.5)
+function get_depth_quantile(depthfun, ref::String, annots, gt; pp::Float64 = 0.5)
     idx, res = [], []
 
     # Loop over nephrectomy samples
@@ -186,7 +189,7 @@ function get_depth_quantile(depthfun, ref, annots; pp = 0.5)
             ref = v
         end
 
-        r = calc_depth_quantile(neph, depthfun, refdata; pp = pp)
+        r = calc_depth_quantile(neph, depthfun, refdata, gt; pp = pp)
         push!(res, r)
     end
 
@@ -199,10 +202,10 @@ end
 # Create a matrix containing the pp'th quantile of depths
 # calculated using 'depthfun' relative to the given reference
 # class, using the data in 'annots'.
-function build_depths(pp, depthfun, annots; ref="Normal")
+function build_depths(pp::Vector{Float64}, depthfun, annots, gt::Vector{String}; ref::String="Normal")
     dd = nothing
     for p in pp
-        dd1 = get_depth_quantile(depthfun, ref, annots; pp = p)
+        dd1 = get_depth_quantile(depthfun, ref, annots, gt; pp = p)
         if isnothing(dd)
             dd = dd1
         else

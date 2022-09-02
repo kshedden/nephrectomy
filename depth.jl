@@ -20,12 +20,12 @@ function main(annots)
 
     rkeys = ["Normal"]#, "Normal", "Capsule", "CMJ"]
 
-    dn = ["L2 depth", "Tukey halfspace depth"]#, "Distance to capsule", "Distance to CMJ"]
-    dpf = [l2_depth, tukey_depth] #, boundary_depth, boundary_depth]
+    dn = ["L2 depth"]#, "Tukey halfspace depth"]#, "Distance to capsule", "Distance to CMJ"]
+    dpf = [l2_depth]#, tukey_depth] #, boundary_depth, boundary_depth]
 
     for (jd, depthfun) in enumerate(dpf)
 
-        depths = build_depths([0.5], depthfun, annots)
+        depths = build_depths([0.5], depthfun, annots, glom_types)
 
         clin[!, :Race] = [ismissing(x) ? missing : Int(x) for x in clin[:, :Race]]
         for x in unique(clin[:, :Race])
@@ -48,6 +48,5 @@ end
 
 annotsx = glom_centroids(annots)
 annotsx = major_components(annotsx)
-#annotsc = Dict(k => condense(v) for (k, v) in annotsx)
 
 main(annotsx)
