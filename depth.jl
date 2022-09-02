@@ -1,30 +1,23 @@
-using CodecZlib, CSV, DataFrames, LinearAlgebra
-using Printf, StaticArrays, Statistics
+using DataFrames, LinearAlgebra, Printf, StaticArrays, Statistics
 
 include("defs.jl")
 include("annot_utils.jl")
 include("clinical_utils.jl")
 
-annotsx = glom_centroids(annots)
-annotsx = major_components(annotsx)
-
-# Create a column index for each glom type
-gti = Dict()
-for (k, v) in enumerate(glom_types)
-    gti[v] = k
-end
-
 # Statistically compare the median depths for every pair of glom types.
-function depth_analysis(depths)
+function depth_analysis(depths, gt)
     rslt = (Groups = String[], Z = Float64[], N = Int[])
 
     # Loop over all distinct pairs of glomerulus types, excluding "All_glomeruli"
-    for j1 = 1:length(glom_types)
+    for j1 = 1:length(gt)
         for j2 = 1:j1-1
-            if "All_glomeruli" in [glom_types[j1], glom_types[j2]]
+            if occursin("All_glomeruli", gt[j1]) || occursin("All_glomeruli", gt[j2])
                 continue
             end
-            x = depths[:, [j1, j2]]
+            if !((gt[j1] in names(depths)) && (gt[j2] in names(depths)))
+                continue
+            end
+            x = depths[:, [gt[j1], gt[j2]]]
             x = x[completecases(x), :]
             if size(x, 1) == 0
                 continue
@@ -38,7 +31,7 @@ function depth_analysis(depths)
                 j2, j1, -z
             end
 
-            push!(rslt.Groups, @sprintf("%s - %s", glom_types[k2], glom_types[k1]))
+            push!(rslt.Groups, @sprintf("%s - %s", gt[k2], gt[k1]))
             push!(rslt.Z, z)
             push!(rslt.N, length(di))
         end
@@ -48,25 +41,28 @@ function depth_analysis(depths)
     return rslt
 end
 
-function clinical_analysis(depths)
+function clinical_analysis(depths, gt)
     crslt =
         (Glomtype = String[], Clinvar = String[], r = Float64[], Z = Float64[], N = Int[])
+
     for c in names(clin)[6:end]
-        if c in ["Race"]
+        if occursin("Race", c)
             continue
         end
-        for gt in glom_types
-            if gt == "All_glomeruli"
+        for gg in gt
+
+            if !(gg in names(depths))
                 continue
             end
-            xx = depths[:, [gt, c]]
+
+            xx = depths[:, [gg, c]]
             xx = xx[completecases(xx), :]
             if size(xx, 1) < 30
                 continue
             end
             r = cor(xx[:, 1], xx[:, 2])
             rz = sqrt(size(xx, 1) - 3) * r
-            push!(crslt.Glomtype, gt)
+            push!(crslt.Glomtype, gg)
             push!(crslt.Clinvar, c)
             push!(crslt.r, r)
             push!(crslt.Z, rz)
@@ -111,29 +107,55 @@ function boundary_depth(v1::StaticVector{2}, v2::Vector{StaticVector{2}})
     return dmin
 end
 
-# Calculate the median depth for each glom type in nephrectomy 'neph' using the given depth function.
-function run_depth(neph, depth, ref)
+# Calculate a quantile of the depths for each glom type in nephrectomy 'neph' using the given depth function.
+function calc_depth_quantile(neph, depth, ref; pp = 0.5)
 
-    r = Vector{Union{Missing,Float64}}(undef, length(glom_types))
-    r .= missing
+    r = Dict{String,Union{Missing,Float64}}()
 
+    # Not enough reference gloms to compute depths against
     if length(ref) < 5
         return r
     end
 
     for k in keys(neph)
-        if k in glom_types
+        if k in glom_types || k == "Atypical"
             di = [depth(z, ref) for z in neph[k]]
-            r[gti[k]] = length(di) > 0 ? median(di) : missing
+            if length(di) > 0
+                r[k] = length(di) > 0 ? quantile(di, pp) : missing
+            end
         end
     end
+
     return r
 end
 
-# Get the median depth for each glom type within each nephrectomy
-function get_depths(depth, rkey)
+function make_df(res, pp)
+
+    # Glom types
+    ky = union([keys(r) for r in res]...)
+    ky = Vector([k for k in ky])
+    sort!(ky)
+    kyi = Dict([k => i for (i, k) in enumerate(ky)])
+
+    n = length(res)
+    p = length(ky)
+    x = Matrix{Union{Missing,Float64}}(missing, n, p)
+
+    for (j, r) in enumerate(res)
+        for (k, v) in r
+            x[j, kyi[k]] = v
+        end
+    end
+
+    return DataFrame(x, [@sprintf("%s_%.2f", k, pp) for k in ky])
+end
+
+# Get a quantile of the depths for the gloms of each type within each nephrectomy
+function get_depth_quantile(depth, rkey, annots; pp = 0.5)
     idx, res = [], []
-    for (k, neph) in annotsx
+
+    # Loop over nephrectomy samples
+    for (k, neph) in annots
         push!(idx, k)
 
         # Compute depth relative to these points.
@@ -149,21 +171,27 @@ function get_depths(depth, rkey)
             ref = v
         end
 
-        r = run_depth(neph, depth, ref)
+        r = calc_depth_quantile(neph, depth, ref; pp = pp)
         push!(res, r)
     end
 
-    depths = hcat(res...)'
-    depths = DataFrame(depths, glom_types)
+    depths = make_df(res, pp)
     depths[:, :Scanner_ID] = [parse(Int, x) for x in idx]
 
-    clin[!, :Race] = [ismissing(x) ? missing : Int(x) for x in clin[:, :Race]]
-    for x in unique(clin[:, :Race])
-        clin[:, Symbol("Race$(x)")] = clin[:, :Race] .== x
-    end
-    depths = leftjoin(depths, clin, on = :Scanner_ID)
-
     return depths
+end
+
+function build_depths(pp, depthfun, annots)
+    dd = nothing
+    for p in pp
+        dd1 = get_depth_quantile(depthfun, "Normal", annots; pp = p)
+        if isnothing(dd)
+            dd = dd1
+        else
+            dd = leftjoin(dd, dd1, on = :Scanner_ID)
+        end
+    end
+    return dd
 end
 
 function dfclean(df)
@@ -173,22 +201,42 @@ function dfclean(df)
     return x
 end
 
-out = open("depth.txt", "w")
+function main(annots)
+    out = open("depth.txt", "w")
 
-rkeys = ["Normal", "Normal", "Capsule", "CMJ"]
+    pp = 0.5
+    gt = [@sprintf("%s_%.2f", g, pp) for g in glom_types]
 
-dn = ["L2 depth", "Tukey halfspace depth", "Distance to capsule", "Distance to CMJ"]
+    rkeys = ["Normal"]#, "Normal", "Capsule", "CMJ"]
 
-for (jd, depth) in enumerate([l2_depth, tukey_depth, boundary_depth, boundary_depth])
-    depths = get_depths(depth, rkeys[jd])
-    drslt = depth_analysis(depths)
-    crslt = clinical_analysis(depths)
-    write(out, @sprintf("=== %s ===\n\n", dn[jd]))
-    write(out, "Differences in median depth based on glomerulus type:\n")
-    write(out, dfclean(drslt))
-    write(out, "\n\nAssociations between depth and clinical variables:\n")
-    write(out, dfclean(crslt))
-    write(out, "\n\n")
+    dn = ["L2 depth", "Tukey halfspace depth"]#, "Distance to capsule", "Distance to CMJ"]
+    dpf = [l2_depth, tukey_depth] #, boundary_depth, boundary_depth]
+
+    for (jd, depthfun) in enumerate(dpf)
+
+        depths = build_depths([0.5], depthfun, annots)
+
+        clin[!, :Race] = [ismissing(x) ? missing : Int(x) for x in clin[:, :Race]]
+        for x in unique(clin[:, :Race])
+            clin[:, Symbol("Race$(x)")] = clin[:, :Race] .== x
+        end
+        depths = leftjoin(depths, clin, on = :Scanner_ID)
+
+        drslt = depth_analysis(depths, gt)
+        crslt = clinical_analysis(depths, gt)
+        write(out, @sprintf("=== %s ===\n\n", dn[jd]))
+        write(out, "Differences in median depth based on glomerulus type:\n")
+        write(out, dfclean(drslt))
+        write(out, "\n\nAssociations between depth and clinical variables:\n")
+        write(out, dfclean(crslt))
+        write(out, "\n\n")
+    end
+
+    close(out)
 end
 
-close(out)
+annotsx = glom_centroids(annots)
+annotsx = major_components(annotsx)
+#annotsc = Dict(k => condense(v) for (k, v) in annotsx)
+
+main(annotsx)

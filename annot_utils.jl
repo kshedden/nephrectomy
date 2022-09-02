@@ -55,7 +55,7 @@ function condense(a)
     end
 
     # Combine these glomerular types into one category
-    b["Atypical"] = []
+    b["Atypical"] = SVector{2}[]
     b["Atypical_components"] = []
     for x in atypical_glom_types
         if haskey(a, x)

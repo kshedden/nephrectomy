@@ -9,6 +9,7 @@ function pair_corr(a; use::Vector{String} = String[])
 
     dit = Dict{Tuple{String,String},Vector{Float64}}()
 
+    # Get all feature names that we wish to analyze.
     ptp = collect(keys(a))
     ptp = [x for x in ptp if !endswith(x, "_components")]
     if length(use) > 0

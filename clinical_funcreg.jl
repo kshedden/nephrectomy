@@ -136,6 +136,5 @@ end
 ifig = main()
 
 f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
-c =
-    `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_funcreg_loadings.pdf $f`
+c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=clinical_funcreg_loadings.pdf $f`
 run(c)
