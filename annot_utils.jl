@@ -83,7 +83,7 @@ function major_components(annots)
             h[x] = y
         end
         m = maximum(values(h))
-        km = first([h[x] == m for x in keys(h)])
+        km = first([x for x in keys(h) if h[x] == m])
 
         for ky in keys(annots[k])
             if ky in glom_types && haskey(annots[k], "$(ky)_components")

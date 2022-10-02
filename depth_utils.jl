@@ -63,6 +63,8 @@ function clinical_analysis(depths, gt::Vector{String})
 
             xx = depths[:, [gg, c]]
             xx = xx[completecases(xx), :]
+
+            # Require data for at least 30 people to take a correlation.
             if size(xx, 1) < 30
                 continue
             end
@@ -85,6 +87,26 @@ end
 function l2_depth(v1::StaticVector{2}, v2::Vector{StaticVector{2}})
     d = mean([norm(v1 - x) for x in v2])
     return 1e6 / (1 + d)
+end
+
+# Calculate the spatial depth.
+function spatial_depth(v1::StaticVector{2}, v2::Vector{StaticVector{2}})
+
+    u = zeros(2)
+    s = zeros(2)
+
+    n = 0
+    for v in v2
+        u .= v - v1
+        nu = norm(u)
+        if nu > 1e-10
+            u ./= nu
+            n += 1
+        end
+        s .+= u
+    end
+    s ./= n
+    return 1 - norm(s)
 end
 
 # Calculate the Tukey depth of the vector 'v1' relative to the vectors in 'v2'.
@@ -124,7 +146,7 @@ function calc_depth_quantile(neph, depthfun, ref, gt::Vector{String}; pp = 0.5)
     r = Dict{String,Union{Missing,Float64}}()
 
     # Not enough reference gloms to compute depths against
-    if length(ref) < 5
+    if length(ref) < 10
         return r
     end
 
@@ -162,7 +184,7 @@ function make_df(res, pp::Float64)
         end
     end
 
-    return DataFrame(x, [@sprintf("%s_%.2f", k, pp) for k in ky])
+    return DataFrame(x, [@sprintf("%s_q%02.0f", k, 100 * pp) for k in ky])
 end
 
 # Get the pp'th quantile of the depths for the glomeruli of each type
@@ -179,7 +201,7 @@ function get_depth_quantile(depthfun, ref::String, annots, gt; pp::Float64 = 0.5
         # Compute depth relative to these points.
         refdata = get(neph, ref, [])
         if ref in boundary_types
-            # Convert vector of arrays to vetor of 2-vectors.
+            # Convert vector of arrays to vector of 2-vectors.
             v = Vector{StaticVector{2}}()
             for b in ref
                 for c in eachcol(b)
@@ -202,7 +224,13 @@ end
 # Create a matrix containing the pp'th quantile of depths
 # calculated using 'depthfun' relative to the given reference
 # class, using the data in 'annots'.
-function build_depths(pp::Vector{Float64}, depthfun, annots, gt::Vector{String}; ref::String="Normal")
+function build_depths(
+    pp::Vector{Float64},
+    depthfun,
+    annots,
+    gt::Vector{String};
+    ref::String = "Normal",
+)
     dd = nothing
     for p in pp
         dd1 = get_depth_quantile(depthfun, ref, annots, gt; pp = p)
@@ -214,4 +242,3 @@ function build_depths(pp::Vector{Float64}, depthfun, annots, gt::Vector{String};
     end
     return dd
 end
-

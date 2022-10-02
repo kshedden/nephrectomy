@@ -10,7 +10,7 @@ annotsc = Dict(k => condense(v) for (k, v) in annotsx)
 gt = ["Atypical", "Normal"]
 
 # Calculate depth quantiles at a sequence of probability points
-pp = range(0.1, 0.9, length=9)
+pp = range(0.1, 0.9, length = 9)
 dd = build_depths(pp, l2_depth, annotsc, gt)
 dd = dd[completecases(dd), :]
 

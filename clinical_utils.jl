@@ -1,21 +1,30 @@
-using CodecZlib, CSV, DataFrames
+using CSV, DataFrames, Statistics
 
 # Clinical variables
 pa = "/home/kshedden/data/Markus_Bitzer"
-clin = open(GzipDecompressorStream, joinpath(pa, "Spatial_IDs.csv.gz")) do io
+clin = open(joinpath(pa, "Spatial_IDs.csv.gz")) do io
     CSV.read(io, DataFrame)
 end
 
-egfr = open(
-    GzipDecompressorStream,
-    joinpath(pa, "eGFR  - updated formula.xlsx - Sheet1.csv.gz"),
-) do io
+# Merge updated GFR
+ff = "eGFR  - updated formula.xlsx - Sheet1.csv.gz"
+egfr = open(joinpath(pa, ff)) do io
     CSV.read(io, DataFrame)
 end
 egfr = egfr[:, [:Precise_ID, :Baseline_eGFR]]
 egfr = rename(egfr, :Baseline_eGFR => :Revised_eGFR)
-
 clin = leftjoin(clin, egfr, on = :Precise_ID)
+
+# Merge morphometrics
+morph = open(joinpath(pa, "output_summary_final_20222709_KAS.csv.gz")) do io
+    CSV.read(io, DataFrame)
+end
+mf = [
+    x for x in names(morph)[5:end] if
+    !occursin("column", lowercase(x)) && eltype(morph[:, x]) <: Number
+]
+morphx = combine(groupby(morph, :Name_ID), [x => median for x in mf]...)
+clin = leftjoin(clin, morphx, on = :Scanner_ID => :Name_ID)
 
 # Return a phenotype vector y for variable 'vname', and the corresponding
 # array of normalized distance quantiles.
