@@ -1,11 +1,12 @@
-using PyPlot, Statistics, Printf, DataFrames, LinearAlgebra, GeometricalPredicates, CSV
-
-# TODO: add counts for specific subtypes
-# rename columns to more informative names
+using PyPlot, Statistics, Printf, DataFrames, LinearAlgebra, CSV
+using UnicodePlots
+import GeometryBasics
+import PolygonOps
 
 # 0.25 microns/pixel = 4 pixels/micron
 # length = 1.2 cm * 10000 micron / cm * 4 pixels / micron = 48000 pixels
 # radius = 0.6 mm * 1000 micron / mm * 4 pixels / micron = 2400 pixels
+# offset = 0.25 cm * 10000 micron / cm * 4 pixels / micron = 10000 pixels
 
 include("defs.jl")
 include("annot_utils.jl")
@@ -14,7 +15,7 @@ rm("plots", force = true, recursive = true)
 mkdir("plots")
 
 # Use a running PCA to identify a tangent vector to the capsule.
-function smooth(x::Matrix{Float64}, j::Int, xw::Matrix{Float64})
+function tangent(x::Matrix{Float64}, j::Int, xw::Matrix{Float64})
 
     # Length of capsule path
     n = size(x, 2)
@@ -45,15 +46,16 @@ end
 
 # Get the four corners of a quadrilateral polygon that represents the biopsy needle
 function getpoly(zz, zt, zd)
-    xy = zeros(4, 2)
-    xy[1, :] = zz + 2400 * zt + 100 * zd
-    xy[2, :] = zz + 2400 * zt + 48000 * zd
-    xy[3, :] = zz - 2400 * zt + 48000 * zd
-    xy[4, :] = zz - 2400 * zt + 100 * zd
-    u = xy[2, :] - xy[1, :]
-    v = xy[3, :] - xy[1, :]
+    xy = zeros(2, 4)
+    xy[:, 1] = zz + 2400 * zt + 100 * zd   # ll
+    xy[:, 2] = zz + 2400 * zt + 48000 * zd # ul
+    xy[:, 3] = zz - 2400 * zt + 48000 * zd # ur
+    xy[:, 4] = zz - 2400 * zt + 100 * zd   # lr
+    u = xy[:, 2] - xy[:, 1]
+    v = xy[:, 3] - xy[:, 1]
     f = dot(u, v) / dot(u, u)
-    xy[2, :] = xy[1, :] + f * u
+    xy[:, 2] = xy[:, 1] + f * u
+
     return xy
 end
 
@@ -61,22 +63,56 @@ end
 # of gloms in the section.
 function capture(needle, gloms)
 
-    po = Polygon(
-        Point(needle[1, 1], needle[1, 2]),
-        Point(needle[2, 1], needle[2, 2]),
-        Point(needle[3, 1], needle[3, 2]),
-        Point(needle[4, 1], needle[4, 2]),
-    )
+    po = [
+        SVector(needle[1, 1], needle[2, 1]),
+        SVector(needle[1, 2], needle[2, 2]),
+        SVector(needle[1, 3], needle[2, 3]),
+        SVector(needle[1, 4], needle[2, 4]),
+        SVector(needle[1, 1], needle[2, 1]),
+    ]
 
     n = 0
     for g in gloms
-        n += inpolygon(po, Point(g[1], g[2]))
+        n += PolygonOps.inpolygon(SVector(g[1], g[2]), po)
     end
 
     return n, length(gloms)
 end
 
-function make_plot(id, neph, ixp)
+
+function tissue_frac(tis, xy)
+
+    Gpoint = GeometryBasics.Point
+    Gline = GeometryBasics.Line
+
+    @assert length(tis) == 1
+    tix = first(tis)
+
+    # Two long sides of the needle
+    f1 = Gline(Gpoint(xy[1, 1], xy[2, 1]), Gpoint(xy[1, 2], xy[2, 2]))
+    f3 = Gline(Gpoint(xy[1, 3], xy[2, 3]), Gpoint(xy[1, 4], xy[2, 4]))
+
+    frac = 1.0
+    for i = 1:size(tix, 2)-1
+
+        # One line segement of the tissue
+        lt = Gline(Gpoint(tix[1, i], tix[2, i]), Gpoint(tix[1, i+1], tix[2, i+1]))
+
+        i1, p1 = GeometryBasics.intersects(f1, lt)
+        i3, p3 = GeometryBasics.intersects(f3, lt)
+        if i1 || i3
+            pp = i1 ? p1 : p3
+            # Distance to inner left
+            h1 = norm(pp - Gpoint(xy[1, 1], xy[2, 1]))
+            # Distance to upper left
+            h2 = norm(pp - Gpoint(xy[1, 2], xy[2, 2]))
+            frac = min(frac, h1 / (h1 + h2))
+        end
+    end
+    return frac
+end
+
+function make_plot(id, neph, offset, ixp)
 
     counts = []
 
@@ -95,18 +131,28 @@ function make_plot(id, neph, ixp)
 
     xw = zeros(2, 101)
 
-    # Loop over pieces of capsule boundary
-    for (k, tp) in enumerate(neph["Capsule"])
+    # Plot the tissue boundary
+    tis = get(neph, "Tissue", [])
+    for ti in tis
+        PyPlot.plot(ti[1, :], ti[2, :], "-", color = "black")
+    end
 
-        n = size(tp, 2)
+    # Loop over pieces of capsule boundary
+    for (k, caps) in enumerate(neph["Capsule"])
+
+        # Number of points on the capsule boundary
+        n = size(caps, 2)
         for i = 10:n-10
 
             # The point where the needle enters
-            zz = tp[:, i]
+            zz = caps[:, i]
 
             # Tangent vector to the capsule
-            zt = smooth(tp, i, xw)
+            zt = tangent(caps, i, xw)
 
+            # Get the local glomeruli to the needle entry point
+            # This is used to determine which side of the capsule
+            # is the kidney
             dd = [norm(zz - x) for x in neph["All_glomeruli"]]
             ii = findall(dd .< quantile(dd, 0.2))
             ctr = sum(neph["All_glomeruli"][ii]) / length(ii)
@@ -128,10 +174,19 @@ function make_plot(id, neph, ixp)
             a = 2 * aa * rand() - aa
             zd = cos(a) * zn + sin(a) * zt
 
+            # Push the needle inward so that it starts below the surface.
+            zz1 = zz + offset * zd
+
             # Allow the needle to enter occasionally
-            if i % 50 == 1
-                xy = getpoly(zz, zt, zd)
+            if i % 10 == 1
+                xy0 = getpoly(zz, zt, zd)
+                xy = getpoly(zz1, zt, zd)
                 n_glom, t_glom = capture(xy, neph["All_glomeruli"])
+                fr = tissue_frac(tis, xy0)
+                fr0 = tissue_frac(tis, xy)
+                if min(fr, fr0) < 0.75
+                    continue
+                end
 
                 c = [n_glom, t_glom]
                 for atp in atypical_glom_types
@@ -144,9 +199,9 @@ function make_plot(id, neph, ixp)
                 push!(counts, c)
 
                 # Draw the needle
-                if i % 500 == 1
+                if i % 200 == 1
                     pa = PyPlot.matplotlib.patches.Polygon(
-                        xy,
+                        xy',
                         fill = true,
                         edgecolor = "grey",
                         facecolor = "lightgrey",
@@ -157,7 +212,7 @@ function make_plot(id, neph, ixp)
         end
 
         # Plot a fragment of the capsule boundary
-        PyPlot.plot(tp[1, :], tp[2, :], "-", color = "yellow")
+        PyPlot.plot(caps[1, :], caps[2, :], "-", color = "yellow")
     end
 
     # Plot all glomeruli
@@ -181,19 +236,23 @@ function make_plot(id, neph, ixp)
     return counts, ixp + 1
 end
 
-function do_all(annots)
+function do_all(annots, offset)
+
+    idx = [k for k in keys(annots)]
+    sort!(idx)
 
     counts, src = [], []
     ixp = 0
-    for (id, a) in annots
+    for id in idx
         println(id)
+        a = annots[id]
 
         # Skip nephrectomies with no capsule
         if !haskey(a, "Capsule") || length(a["Capsule"]) == 0
             continue
         end
 
-        counts1, ixp = make_plot(id, a, ixp)
+        counts1, ixp = make_plot(id, a, offset, ixp)
         push!(counts, counts1...)
 
         for _ in eachindex(counts1)
@@ -208,60 +267,24 @@ function do_all(annots)
         push!(na, "$(u)_total")
     end
     cnt = DataFrame(cnt', na)
-    cnt[:, :ID] = parse.(Int, src)
+    cnt[:, :ID] = src
     cnt = sort(cnt, :ID)
 
     return cnt, ixp
 end
 
 annotsx = glom_centroids(annots)
-annotsx = major_components(annotsx)
-cnt, ixp = do_all(annotsx)
+for offset in [0, 10000]
 
-CSV.write("biopsy_counts.csv", cnt)
+    rm("plots", force = true, recursive = true)
+    mkdir("plots")
 
-f = [@sprintf("plots/%03d.pdf", j) for j = 0:ixp-1]
-c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=biopsy.pdf $f`
-run(c)
+    cnt, ixp = do_all(annotsx, offset)
 
-ifig = 0
-rm("plots", force = true, recursive = true)
-mkdir("plots")
+    s = offset > 0 ? "offset" : "no_offset"
+    CSV.write(@sprintf("biopsy_counts_%s.csv", s), cnt)
 
-function count_scatterplots(ifig)
-
-    # Scatterplot the number of glomeruli detected by the biopsy against the total
-    # number of glomeruli in the nephrectomy sample
-    PyPlot.clf()
-    PyPlot.grid(true)
-    PyPlot.plot(cnt[:, :All_total], cnt[:, :All_captured], "o", mfc = "none", alpha = 0.8)
-    PyPlot.ylabel("Biopsied glomeruli", size = 15)
-    PyPlot.xlabel("Total glomeruli", size = 15)
-    PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
-    ifig += 1
-
-    # Same as above, except using only atypical glmoeruli
-    for gt in atypical_glom_types
-        PyPlot.clf()
-        PyPlot.grid(true)
-        PyPlot.plot(
-            cnt[:, "$(gt)_total"],
-            cnt[:, "$(gt)_captured"],
-            "o",
-            mfc = "none",
-            alpha = 0.8,
-        )
-        PyPlot.ylabel("Biopsied $(gt) glomeruli", size = 15)
-        PyPlot.xlabel("Total $(gt) glomeruli", size = 15)
-        PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
-        ifig += 1
-    end
-
-    return ifig
+    f = [@sprintf("plots/%03d.pdf", j) for j = 0:ixp-1]
+    c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=biopsy_$s.pdf $f`
+    run(c)
 end
-
-ifig = count_scatterplots(ifig)
-
-f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
-c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=biopsy_scatterplots.pdf $f`
-run(c)

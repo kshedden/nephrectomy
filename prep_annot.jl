@@ -14,11 +14,18 @@ function parse_annot(raw_xml::String)
     # Map from nephrectomy id to features
     rd = Dict{String,Vector{Any}}()
 
-    # Loop over the annotation layers
+    # Loop over the annotation layers.  There should be 14 of these.
     for annot in xr["Annotation"]
 
         # Annotation type, translate if needed
-        atp = attribute(annot["Attributes"][1]["Attribute"][1], "Name")
+        atr = annot["Attributes"]
+        @assert length(atr) == 1
+        atr = atr[1]
+        atr = atr["Attribute"]
+        if length(atr) != 1
+            continue # No name for this layer
+        end
+        atp = attribute(atr[1], "Name")
         if haskey(trans, atp)
             atp = trans[atp]
         end
@@ -87,51 +94,6 @@ function create_normal!(rd)
     return rd
 end
 
-function find_components(anno)
-
-    components = Dict{String,Any}()
-
-    # The bounding polygon for each component
-    polys = []
-    if haskey(anno, "Cortex")
-        for (k, ti) in enumerate(anno["Cortex"])
-            tix = SVector{2,Float64}[]
-            for i = 1:size(ti, 2)
-                push!(tix, ti[:, i])
-            end
-            push!(tix, tix[1]) # Close the loop
-            push!(polys, tix)
-        end
-    end
-    m = length(polys)
-
-    # Determine the component to which each glomerulus
-    # belongs.
-    for g in glom_types
-        if !(g in keys(anno))
-            continue
-        end
-
-        gloms = anno[g]
-        cmp = Vector{Union{Int,Nothing}}(undef, length(gloms))
-
-        for (i, glom) in enumerate(gloms)
-            # The centroid of the glomerulus
-            c = mean(glom, dims = 2)
-
-            ix = [j for (j, pl) in enumerate(polys) if inpolygon(c, pl) != 0]
-            if length(ix) == 1
-                cmp[i] = ix[1]
-            else
-                cmp[i] = nothing
-            end
-        end
-        components[g] = cmp
-    end
-
-    return components
-end
-
 function build_annotations(fn)
 
     annots = Dict{String,Any}()
@@ -142,15 +104,11 @@ function build_annotations(fn)
         for (h, iox) in ti
             p = h.path
             pp = splitext(p)
+            @assert length(pp) == 2 && pp[2] == ".xml"
             println("ID=", pp[1])
 
-            @assert length(pp) == 2 && pp[2] == ".xml"
             x = read(iox, String)
             y = parse_annot(x)
-            cmp = find_components(y)
-            for (k, v) in cmp
-                y["$(k)_components"] = v
-            end
             annots[pp[1]] = y
         end
     end

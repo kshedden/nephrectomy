@@ -182,7 +182,6 @@ function main(annots)
 end
 
 annotsx = glom_centroids(annots)
-annotsx = major_components(annotsx)
 
 ifig = main(annotsx)
 

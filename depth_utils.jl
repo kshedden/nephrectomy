@@ -216,7 +216,7 @@ function get_depth_quantile(depthfun, ref::String, annots, gt; pp::Float64 = 0.5
     end
 
     depths = make_df(res, pp)
-    depths[:, :Scanner_ID] = [parse(Int, x) for x in idx]
+    depths[:, :Scanner_ID] = [parse(Int, first(split(x, "_"))) for x in idx]
 
     return depths
 end

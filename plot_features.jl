@@ -7,6 +7,8 @@ include("clinical_utils.jl")
 rm("plots", force = true, recursive = true)
 mkdir("plots")
 
+annotsx = glom_centroids(annots)
+
 # Plot as points
 ptf = [
     "All_glomeruli",
@@ -20,88 +22,18 @@ ptf = [
     "Empty BC",
 ]
 
-# Make a plot showing the disconneced components of
-# each nephrectomy.
-function plot_components(neph_id::String, ixp::Int)::Int
-
-    a = annots[neph_id]
-
-    fni = parse(Int, neph_id)
-
-    PyPlot.clf()
-    PyPlot.axes([0.1, 0.1, 0.7, 0.8])
-    PyPlot.title("$(fni)")
-
-    # Boundary features
-    for q in boundary_types
-        if haskey(a, q)
-            col = q == "Cortex" ? "black" : "grey"
-            lw = q == "Cortex" ? 3 : 1
-            for (j, u) in enumerate(a[q])
-                PyPlot.plot(u[1, :], u[2, :], "-"; color = col, lw = lw)
-            end
-        end
-    end
-
-    colors = Dict(
-        nothing => "red",
-        1 => "blue",
-        2 => "green",
-        3 => "orange",
-        4 => "yellow",
-        5 => "cyan",
-    )
-
-    for ky in glom_types
-
-        kyc = "$(ky)_components"
-        if !(haskey(a, ky) && haskey(a, kyc))
-            continue
-        end
-
-        cmp = a[kyc]
-        uc = unique(cmp)
-        for (j, u) in enumerate(uc)
-            if ky in glom_types
-                xx, yy = Float64[], Float64[]
-                for (i, g) in enumerate(a[ky])
-                    if cmp[i] != u
-                        continue
-                    end
-                    push!(xx, mean(g[1, :]))
-                    push!(yy, mean(g[2, :]))
-                end
-                PyPlot.plot(
-                    xx,
-                    yy,
-                    "o",
-                    mfc = "none",
-                    color = colors[u],
-                    alpha = 0.5,
-                    zorder = 2,
-                )
-            end
-        end
-    end
-
-    PyPlot.axis("off")
-
-    PyPlot.savefig(@sprintf("plots/%03d.pdf", ixp))
-    return ixp + 1
-end
-
 # Generate one figure for the given nephrectomy id.  If mode = 1,
 # show all atypical glomeruli as a single class, otherwise show
 # each atypical class distinctly.
 function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
 
-    a = annots[neph_id]
+    a = annotsx[neph_id]
 
     if mode == 1
         a = condense(a)
     end
 
-    fni = parse(Int, neph_id)
+    fni = parse(Int, first(split(neph_id, "_")))
 
     # In mode 1, skip samples with no clinical data.
     if (mode == 1) && !(fni in clin[:, :Scanner_ID])
@@ -110,7 +42,7 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
 
     PyPlot.clf()
     PyPlot.axes([0.1, 0.1, 0.7, 0.8])
-    PyPlot.title("$(fni)")
+    PyPlot.title(neph_id)
 
     # Features to be plotted with a path
     for k in boundary_types
@@ -132,13 +64,10 @@ function plot_one(neph_id::String, mode::Int, ixp::Int)::Int
             continue
         end
         if haskey(a, k)
-            v = a[k]
             xx, yy = Float64[], Float64[]
-            for u in v
-                x = mean(u[1, :])
-                y = mean(u[2, :])
-                push!(xx, x)
-                push!(yy, y)
+            for u in a[k]
+                push!(xx, u[1])
+                push!(yy, u[2])
             end
 
             PyPlot.plot(
@@ -184,7 +113,9 @@ function plot_all(mode::Int, outname::String)
     mkdir("plots")
 
     ixp = 0
-    for neph_id in keys(annots)
+    ky = [v for v in keys(annotsx)]
+    sort!(ky)
+    for neph_id in ky
         ixp = plot_one(neph_id, mode, ixp)
     end
 
@@ -193,40 +124,7 @@ function plot_all(mode::Int, outname::String)
     run(c)
 end
 
-function plot_sorted(mode::Int, level, outname::String)
-
-    u_df = open("age_scores.csv") do io
-        CSV.read(io, DataFrame)
-    end
-
-    s = Symbol("score$(level)")
-    ii = sortperm(u_df[:, s])
-    idx = u_df[ii, :Scanner_id]
-    fi = ["$(id).xml" for id in idx]
-    plot_all(mode, outname)
-end
-
-function plot_components()
-
-    rm("plots", force = true, recursive = true)
-    mkdir("plots")
-
-    ixp = 0
-    for neph_id in keys(annots)
-        ixp = plot_components(neph_id, ixp)
-    end
-
-    f = [@sprintf("plots/%03d.pdf", j) for j = 0:ixp-1]
-    c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=components.pdf $f`
-    run(c)
-end
-
-# Plot the tissue islands bound by closed loops of cortex.
-plot_components()
-
 # If mode is 1, collapse all atypical glom types into one category.
-level = 1
 for mode in [0, 1]
-    plot_sorted(mode, level, "nephrectomies$(level)_sorted.pdf")
     plot_all(mode, "nephrectomies$(mode).pdf")
 end

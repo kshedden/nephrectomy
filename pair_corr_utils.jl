@@ -3,8 +3,7 @@ using Statistics
 # Calculate pair-correlations within and between
 # the glomerular categories in the dictionary 'a'.
 # If 'use' is present, exclude categories not listed
-# in it.  Only include distances in the same tissue
-# component.
+# in it.
 function pair_corr(a; use::Vector{String} = String[])
 
     dit = Dict{Tuple{String,String},Vector{Float64}}()
@@ -36,10 +35,6 @@ function pair_corr(a; use::Vector{String} = String[])
             dit[qq] = Float64[]
         end
 
-        # The component label for each glom.
-        cmp1 = a["$(q1)_components"]
-        cmp2 = a["$(q2)_components"]
-
         # The centroids for each category.
         u1, u2 = a[q1], a[q2]
 
@@ -50,13 +45,6 @@ function pair_corr(a; use::Vector{String} = String[])
                 # once.
                 if (j1 == j2) && (k2 >= k1)
                     break
-                end
-
-                # Only compare glom pairs in the same component.
-                # Component 'nothing' is a glom that was not bounded
-                # by any cortex loop.
-                if cmp1[k1] != cmp2[k2] || isnothing(cmp1[k1]) || isnothing(cmp2[k2])
-                    continue
                 end
 
                 # Distance between two glomeruli
@@ -112,7 +100,7 @@ function get_normalized_paircorr(annots)
     for neph_id in keys(annots)
 
         # Get the scanner ID from the file name
-        fni = parse(Int, neph_id)
+        fni = parse(Int, first(split(neph_id, "_")))
 
         a = annots[neph_id]
         dit = pair_corr(a, use = ["Normal", "Atypical"])
