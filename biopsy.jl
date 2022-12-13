@@ -1,5 +1,5 @@
-using PyPlot, Statistics, Printf, DataFrames, LinearAlgebra, CSV
-using UnicodePlots
+using PyPlot, Statistics, Printf, DataFrames, LinearAlgebra, CSV, StatsBase
+using UnicodePlots, StableRNGs
 import GeometryBasics
 import PolygonOps
 
@@ -88,33 +88,23 @@ function tissue_frac(tis, xy)
     @assert length(tis) == 1
     tix = first(tis)
 
-    # Two long sides of the needle
-    f1 = Gline(Gpoint(xy[1, 1], xy[2, 1]), Gpoint(xy[1, 2], xy[2, 2]))
-    f3 = Gline(Gpoint(xy[1, 3], xy[2, 3]), Gpoint(xy[1, 4], xy[2, 4]))
-
-    frac = 1.0
-    for i = 1:size(tix, 2)-1
-
-        # One line segement of the tissue
-        lt = Gline(Gpoint(tix[1, i], tix[2, i]), Gpoint(tix[1, i+1], tix[2, i+1]))
-
-        i1, p1 = GeometryBasics.intersects(f1, lt)
-        i3, p3 = GeometryBasics.intersects(f3, lt)
-        if i1 || i3
-            pp = i1 ? p1 : p3
-            # Distance to inner left
-            h1 = norm(pp - Gpoint(xy[1, 1], xy[2, 1]))
-            # Distance to upper left
-            h2 = norm(pp - Gpoint(xy[1, 2], xy[2, 2]))
-            frac = min(frac, h1 / (h1 + h2))
-        end
+    poly = AbstractVector[]
+    for i = 1:size(tix, 2)
+        push!(poly, tix[:, i])
     end
-    return frac
+    push!(poly, poly[1])
+
+    a1 = PolygonOps.inpolygon(xy[:, 1], poly)
+    a2 = PolygonOps.inpolygon(xy[:, 2], poly)
+    a3 = PolygonOps.inpolygon(xy[:, 3], poly)
+    a4 = PolygonOps.inpolygon(xy[:, 4], poly)
+    return all([a1 == 1, a2 == 1, a3 == 1, a4 == 1])
 end
 
-function make_plot(id, neph, offset, ixp)
+function make_plot(id, neph, offset, rng, ixp)
 
     counts = []
+    savexy = []
 
     # Capsule boundary
     capsule = neph["Capsule"]
@@ -137,11 +127,14 @@ function make_plot(id, neph, offset, ixp)
         PyPlot.plot(ti[1, :], ti[2, :], "-", color = "black")
     end
 
-    # Loop over pieces of capsule boundary
+    # Loop over pieces of capsule boundary.  There should be only one.
     for (k, caps) in enumerate(neph["Capsule"])
+
+        lastloc = [missing, missing]
 
         # Number of points on the capsule boundary
         n = size(caps, 2)
+        npunch = 0
         for i = 10:n-10
 
             # The point where the needle enters
@@ -171,45 +164,61 @@ function make_plot(id, neph, offset, ixp)
 
             # Let the needle enter at a random angle centered on orthogonal
             aa = pi / 5
-            a = 2 * aa * rand() - aa
+            a = 2 * aa * rand(rng) - aa
             zd = cos(a) * zn + sin(a) * zt
 
             # Push the needle inward so that it starts below the surface.
             zz1 = zz + offset * zd
 
             # Allow the needle to enter occasionally
-            if i % 10 == 1
+            if ismissing(lastloc[1]) || norm(zz - lastloc) > 400
+
+                # The needle without offset
                 xy0 = getpoly(zz, zt, zd)
+
+                # The needle with offset
                 xy = getpoly(zz1, zt, zd)
-                n_glom, t_glom = capture(xy, neph["All_glomeruli"])
-                fr = tissue_frac(tis, xy0)
-                fr0 = tissue_frac(tis, xy)
-                if min(fr, fr0) < 0.75
+
+                # Check if the needle is mostly inside the tissue specimen
+                fr0 = tissue_frac(tis, xy0)
+                fr = tissue_frac(tis, xy)
+                if !(fr && fr0)
                     continue
                 end
+                lastloc = zz
+                npunch += 1
 
+                n_glom, t_glom = capture(xy, neph["All_glomeruli"])
                 c = [n_glom, t_glom]
-                for atp in atypical_glom_types
-                    n_atp_glom, t_atp_glom = 0, 0
-                    if haskey(neph, atp)
-                        n_atp_glom, t_atp_glom = capture(xy, neph[atp])
+                for gt in vcat("Normal", atypical_glom_types)
+                    n_glom, t_glom = 0, 0
+                    if haskey(neph, gt)
+                        n_glom, t_glom = capture(xy, neph[gt])
                     end
-                    push!(c, n_atp_glom, t_atp_glom)
+                    push!(c, n_glom, t_glom)
                 end
                 push!(counts, c)
 
-                # Draw the needle
-                if i % 200 == 1
-                    pa = PyPlot.matplotlib.patches.Polygon(
-                        xy',
-                        fill = true,
-                        edgecolor = "grey",
-                        facecolor = "lightgrey",
-                    )
-                    ax.add_patch(pa)
-                end
+                push!(savexy, xy')
             end
         end
+
+        # Draw the needle
+        ii = 1:length(savexy)
+        if length(ii) > 10
+            ii = sample(1:length(ii), 10, replace = false)
+        end
+        for i in ii
+            pa = PyPlot.matplotlib.patches.Polygon(
+                savexy[i],
+                fill = true,
+                edgecolor = "grey",
+                facecolor = "lightgrey",
+            )
+            ax.add_patch(pa)
+        end
+
+        println("npunch=$(npunch)")
 
         # Plot a fragment of the capsule boundary
         PyPlot.plot(caps[1, :], caps[2, :], "-", color = "yellow")
@@ -236,7 +245,7 @@ function make_plot(id, neph, offset, ixp)
     return counts, ixp + 1
 end
 
-function do_all(annots, offset)
+function do_all(annots, offset, rng)
 
     idx = [k for k in keys(annots)]
     sort!(idx)
@@ -252,7 +261,7 @@ function do_all(annots, offset)
             continue
         end
 
-        counts1, ixp = make_plot(id, a, offset, ixp)
+        counts1, ixp = make_plot(id, a, offset, rng, ixp)
         push!(counts, counts1...)
 
         for _ in eachindex(counts1)
@@ -262,7 +271,7 @@ function do_all(annots, offset)
 
     cnt = hcat(counts...)
     na = String["All_captured", "All_total"]
-    for u in atypical_glom_types
+    for u in vcat("Normal", atypical_glom_types)
         push!(na, "$(u)_captured")
         push!(na, "$(u)_total")
     end
@@ -278,8 +287,9 @@ for offset in [0, 10000]
 
     rm("plots", force = true, recursive = true)
     mkdir("plots")
+    rng = StableRNG(123)
 
-    cnt, ixp = do_all(annotsx, offset)
+    cnt, ixp = do_all(annotsx, offset, rng)
 
     s = offset > 0 ? "offset" : "no_offset"
     CSV.write(@sprintf("biopsy_counts_%s.csv", s), cnt)

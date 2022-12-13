@@ -16,7 +16,7 @@ egfr = rename(egfr, :Baseline_eGFR => :Revised_eGFR)
 clin = leftjoin(clin, egfr, on = :Precise_ID)
 
 # Merge morphometrics
-morph = open(joinpath(pa, "output_summary_final_20222709_KAS.csv.gz")) do io
+morph = open(joinpath(pa, "output_summary_20221910_KAS.csv.gz")) do io
     CSV.read(io, DataFrame)
 end
 mf = [
