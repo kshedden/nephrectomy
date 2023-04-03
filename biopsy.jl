@@ -14,6 +14,8 @@ include("annot_utils.jl")
 rm("plots", force = true, recursive = true)
 mkdir("plots")
 
+out = open("biopsy_log.txt", "w")
+
 # Use a running PCA to identify a tangent vector to the capsule.
 function tangent(x::Matrix{Float64}, j::Int, xw::Matrix{Float64})
 
@@ -283,13 +285,16 @@ function do_all(annots, offset, rng)
 end
 
 annotsx = glom_centroids(annots)
+write(out, @sprintf("%d samples\n", length(annotsx))
 for offset in [0, 10000]
 
+    write(out, @sprintf("offset=%d\n", offset))
     rm("plots", force = true, recursive = true)
     mkdir("plots")
     rng = StableRNG(123)
 
     cnt, ixp = do_all(annotsx, offset, rng)
+    write(out, @sprintf("%d distinct samples\n", length(unique(cnt[:, :ID]))))
 
     s = offset > 0 ? "offset" : "no_offset"
     CSV.write(@sprintf("biopsy_counts_%s.csv", s), cnt)
@@ -298,3 +303,5 @@ for offset in [0, 10000]
     c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=biopsy_$s.pdf $f`
     run(c)
 end
+
+close(out)

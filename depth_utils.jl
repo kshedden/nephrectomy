@@ -143,7 +143,7 @@ end
 function calc_depth_quantile(neph, depthfun, ref, gt::Vector{String}; pp = 0.5)
 
     # Map glom types to a quantile of the depths for that glom type.
-    r = Dict{String,Union{Missing,Float64}}()
+    r = Dict()
 
     # Not enough reference gloms to compute depths against
     if length(ref) < 10
@@ -157,8 +157,9 @@ function calc_depth_quantile(neph, depthfun, ref, gt::Vector{String}; pp = 0.5)
         end
 
         di = [depthfun(z, ref) for z in neph[k]]
-        if length(di) > 0
-            r[k] = length(di) > 0 ? quantile(di, pp) : missing
+        m = length(di)
+        if m > 0
+            r[k] = m > 0 ? [m, quantile(di, pp)] : [0, missing]
         end
     end
 
@@ -170,21 +171,29 @@ function make_df(res, pp::Float64)
 
     # Glom types
     ky = union([keys(r) for r in res]...)
-    ky = Vector([k for k in ky])
+    ky = [k for k in ky]
     sort!(ky)
     kyi = Dict([k => i for (i, k) in enumerate(ky)])
 
     n = length(res)
     p = length(ky)
-    x = Matrix{Union{Missing,Float64}}(missing, n, p)
+    x = Matrix{Union{Missing,Float64}}(missing, n, 2*p)
 
     for (j, r) in enumerate(res)
         for (k, v) in r
-            x[j, kyi[k]] = v
+            x[j, 2*kyi[k]-1] = v[1]
+            x[j, 2*kyi[k]] = v[2]
         end
     end
 
-    return DataFrame(x, [@sprintf("%s_q%02.0f", k, 100 * pp) for k in ky])
+    # Make names for the dataframe columns
+    na = []
+    for k in ky
+        push!(na, @sprintf("%s_n", k))
+        push!(na, @sprintf("%s_q%02.0f", k, 100 * pp))
+    end
+
+    return DataFrame(x, na)
 end
 
 # Get the pp'th quantile of the depths for the glomeruli of each type
@@ -216,6 +225,7 @@ function get_depth_quantile(depthfun, ref::String, annots, gt; pp::Float64 = 0.5
     end
 
     depths = make_df(res, pp)
+    depths[:, :ID] = idx
     depths[:, :Scanner_ID] = [parse(Int, first(split(x, "_"))) for x in idx]
 
     return depths

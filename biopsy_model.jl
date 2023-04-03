@@ -29,11 +29,49 @@ function load_counts()
     cnt = vcat(cnt...)
     cnt = sort(cnt, :IDx)
 
+    # Restrict to samples having at least one mock biopsy with margin.
     cnt1 = filter(r->r.offset > 0, cnt)
     id = unique(cnt1[:, :ID])
     cnt = filter(r->r.ID in id, cnt)
 
     return cnt
+end
+
+function summary(cnt)
+
+    out = open("biopsy_summary.txt", "w")
+
+    write(out, @sprintf("%10d distinct subjects\n", length(unique(cnt[:, :ID]))))
+
+    nn = combine(groupby(cnt, :ID), :All_total=>first)[:, :All_total_first]
+    write(out, @sprintf("%10.2f mean number of glomeruli per nephrectomy\n", mean(nn)))
+    write(out, @sprintf("%10.2f SD of number of glomeruli per nephrectomy\n\n", std(nn)))
+
+    cnt0 = filter(r->r.offset == 0, cnt)
+    nn = combine(groupby(cnt0, :ID), :All_captured=>mean)[:, :All_captured_mean]
+    write(out, @sprintf("%10.2f mean number of glomeruli per zero-offset biopsy\n", mean(nn)))
+    write(out, @sprintf("%10.2f SD of number of glomeruli per zero-offset biopsy\n", std(nn)))
+
+    cnt1 = filter(r->r.offset > 0, cnt)
+    nn = combine(groupby(cnt1, :ID), :All_captured=>mean)[:, :All_captured_mean]
+    write(out, @sprintf("%10.2f mean number of glomeruli per biopsy with offset\n", mean(nn)))
+    write(out, @sprintf("%10.2f SD of number of glomeruli biopsy with offset\n\n", std(nn)))
+
+    for k in keys(qlabel)
+        ks = Symbol("$(k)_total")
+        nn = combine(groupby(cnt, :ID), ks=>first, :All_total=>first)
+        kx = Symbol("$(ks)_first")
+        r = 100 * nn[:, kx] ./ nn[:, :All_total_first]
+        la = qlabel[k]
+        write(out, @sprintf("%10.2f mean percentage of %s glomeruli per sample\n", mean(r), la))
+        write(out, @sprintf("%10.2f median percentage of %s glomeruli per sample\n", median(r), la))
+        write(out, @sprintf("%10.2f 25th percentile percentage of %s glomeruli per sample\n", quantile(r, 0.25), la))
+        write(out, @sprintf("%10.2f 75th percentile percentage of %s glomeruli per sample\n", quantile(r, 0.75), la))
+        write(out, @sprintf("%10.2f minimum percentage of %s glomeruli per sample\n", minimum(r), la))
+        write(out, @sprintf("%10.2f maximum percentage of %s glomeruli per sample\n\n", maximum(r), la))
+    end
+
+    close(out)
 end
 
 function fitmodels_getnames(gt)
@@ -123,6 +161,8 @@ end
 
 function plot_fitted(gt, ypx, trx, pr, loc, ifig)
 
+    gtx = qlabel[Symbol(gt)]
+
     # Plot fitted logistic regression
     for dfp in [1, 2, 3]
         PyPlot.clf()
@@ -162,26 +202,24 @@ function plot_fitted(gt, ypx, trx, pr, loc, ifig)
         else
             PyPlot.title("Logistic regression")
         end
-
         if gt == "FGGS"
             PyPlot.xlim(0, 0.3)
         else
             PyPlot.xlim(0, 0.1)
         end
-
         if dfp == 1
             PyPlot.ylim(-0.3, 0.8)
-            PyPlot.ylabel("Difference in probabilities of T or more\n$(qlabel[Symbol(gt)]) glomeruli in biopsy", size=14)
+            PyPlot.ylabel("Difference in probabilities of T or more\n$(gtx) glomeruli in biopsy", size=14)
         elseif dfp == 2
             PyPlot.ylim(0, 5)
-            PyPlot.ylabel("Ratio of probabilities of T or more\n$(qlabel[Symbol(gt)]) glomeruli in biopsy", size=14)
+            PyPlot.ylabel("Ratio of probabilities of T or more\n$(gtx) glomeruli in biopsy", size=14)
         elseif dfp == 3
             PyPlot.ylim(0, 1)
-            PyPlot.ylabel("Probability of T or more\n$(qlabel[Symbol(gt)]) glomeruli in biopsy", size=14)
+            PyPlot.ylabel("Probability of T or more\n$(gtx) glomeruli in biopsy", size=14)
         else
             error("")
         end
-        PyPlot.xlabel("Proportion of $(qlabel[Symbol(gt)]) glomeruli in nephrectomy", size=14)
+        PyPlot.xlabel("Proportion of $(gtx) glomeruli in nephrectomy", size=14)
         PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
         ifig += 1
     end
@@ -277,7 +315,7 @@ function specimen_marginals(cnt, ifig)
     cc[:, :Atypical] = cc[:, :FGGS] + cc[:, :FSGS] + cc[:, :Imploding] + cc[:, :Ischemic]
     la0 = [:FGGS, :FSGS, :Imploding, :Ischemic, :Atypical, :Normal]
     cc = cc[:, la0]
-    la = replace(la0, :FGGS=>:GSG, :FSGS=>:SSG)
+    la = replace(la0, :FGGS=>"GSG", :FSGS=>"SSG")
 
     for pct in [false, true]
         if pct
@@ -386,9 +424,9 @@ function biopsy_scatterplots(cnt, ifig)
             PyPlot.plot(cc[1][:, s], cc[2][:, s], "o", mfc="none")
             PyPlot.axline((0, 0), slope=1, color="black")
             PyPlot.xlabel(@sprintf("%s number of captured %s\nglomeruli per biopsy",
-                          titlecase(string(stat)), qlabel[x]), size=12)
+                          titlecase(string(stat)), plabel[x]), size=12)
             PyPlot.ylabel(@sprintf("%s number of captured %s\nglomeruli per deep biopsy",
-                          titlecase(string(stat)), qlabel[x]), size=12)
+                          titlecase(string(stat)), plabel[x]), size=12)
             PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
             ifig += 1
         end
@@ -398,6 +436,7 @@ function biopsy_scatterplots(cnt, ifig)
 end
 
 cnt = load_counts()
+summary(cnt)
 
 ifig = 0
 ifig = specimen_marginals(cnt, ifig)
