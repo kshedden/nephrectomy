@@ -1,4 +1,12 @@
-using CSV, DataFrames, GEE, StatsModels, GLM, Printf, Statistics, PyPlot
+using CSV
+using DataFrames
+using EstimatingEquationsRegression
+using StatsModels
+using StatsBase
+using GLM
+using Printf
+using Statistics
+using PyPlot
 using StatsBase
 
 rm("plots", recursive = true, force = true)
@@ -124,7 +132,7 @@ function local_logistic(y, x, xp; bw=0.1)
     return yp
 end
 
-function fitmodels_local(gt, trx, cnt, ifig)
+function fitmodels_local(gt, trx, cnt, dout, ifig)
 
     nc, pr, pr1, pr2, pr3 = fitmodels_getnames(gt)
     xp = range(0, xmax[gt], 50)
@@ -154,12 +162,12 @@ function fitmodels_local(gt, trx, cnt, ifig)
         push!(ypx, [dp, vcat(yh...)])
     end
 
-    ifig = plot_fitted(gt, ypx, trx, pr, true, ifig)
+    ifig = plot_fitted(gt, ypx, trx, pr, true, dout, ifig)
 
     return ifig
 end
 
-function plot_fitted(gt, ypx, trx, pr, loc, ifig)
+function plot_fitted(gt, ypx, trx, pr, loc, dout, ifig)
 
     gtx = qlabel[Symbol(gt)]
 
@@ -189,6 +197,15 @@ function plot_fitted(gt, ypx, trx, pr, loc, ifig)
             elseif dfp == 3
                 PyPlot.plot(dp[i0, pr], yp[i0], "-", color=c, label=@sprintf("%.0f", trx[i]))
                 PyPlot.plot(dp[i1, pr], yp[i1], "--", color=c)
+
+                if !isnothing(dout)
+                    for pp in [0.05, 0.1]
+                        kk = argmin(abs.(dp[i0, pr] .- pp))
+                        write(dout, @sprintf("%s,%d,shallow,%.2f,%.3f,%f\n", gtx, trx[i], pp, dp[i0, pr][kk], yp[i0][kk]))
+                        kk = argmin(abs.(dp[i1, pr] .- pp))
+                        write(dout, @sprintf("%s,%d,deep,%.2f,%.3f,%f\n", gtx, trx[i], pp, dp[i1, pr][kk], yp[i1][kk]))
+                    end
+                end
             else
                 error("")
             end
@@ -261,14 +278,24 @@ function fitmodels_logistic(gt, trx, cnt, fpx, ifig)
             push!(ff, term(p) & term(:offset))
         end
         f = term(tnc) ~ sum(ff)
+        println(gt, " ", tr)
         m1x = gee(f, cnt, cnt[:, :IDx], LogitLink(), BinomialVar(), IndependenceCor(); dofit=false)
         m1 = gee(f, cnt, cnt[:, :IDx], LogitLink(), BinomialVar(), IndependenceCor())
         write(out, @sprintf(">= %.0f %s glomeruli\n\n", tr, gt))
         write(out, string(m1))
-        write(out, "\n\n")
+        write(out, "\n")
+
+        cntx = copy(cnt)
+        yy = []
+        for offset in (0, 1)
+            cntx[:, :offset] .= offset
+            yp = predict(m1, cntx; type=:response)
+            push!(yy, yp)
+        end
+        write(out, @sprintf("Effect size: %f\n", mean(yy[1]) - mean(yy[2])))
 
         st = scoretest(m1x.model, m0.model)
-        write(out, @sprintf("Score test p=%.4f\n\n\n", st.Pvalue))
+        write(out, @sprintf("Score test p=%.4f\n\n\n", pvalue(st)))
 
         # Get prediction from GEE model for count.
         dp = copy(cnt[1:200, :])
@@ -283,22 +310,25 @@ function fitmodels_logistic(gt, trx, cnt, fpx, ifig)
         push!(ypx, [dp, yp])
     end
 
-    ifig = plot_fitted(gt, ypx, trx, pr, false, ifig)
+    ifig = plot_fitted(gt, ypx, trx, pr, false, nothing, ifig)
 
     return ifig
 end
 
-function fitmodels_helper(gt, cnt, ifig)
+function fitmodels_helper(gt, cnt, dout, ifig)
     cnt, fp1, fp2, fp3 = fitmodels_setup(gt, cnt)
     ifig = fitmodels_logistic(gt, [1., 2, 3, 4, 5], cnt, [fp1, fp2, fp3], ifig)
-    ifig = fitmodels_local(gt, [1., 2, 3, 4, 5], cnt, ifig)
+    ifig = fitmodels_local(gt, [1., 2, 3, 4, 5], cnt, dout, ifig)
     return ifig
 end
 
 function fitmodels(cnt, ifig)
+    dout = open("biopsy_model_data.csv", "w")
+    write(dout, "glom_type,threshold,biopsy_depth,nominal_percent,actual_percent,capture_percent\n")
     for gt in ["FGGS", "FSGS", "Imploding", "Ischemic", "Normal"]
-        ifig = fitmodels_helper(gt, cnt, ifig)
+        ifig = fitmodels_helper(gt, cnt, dout, ifig)
     end
+    close(dout)
     return ifig
 end
 

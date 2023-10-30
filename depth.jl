@@ -1,4 +1,10 @@
-using DataFrames, LinearAlgebra, Printf, StaticArrays, Statistics, PyPlot
+using DataFrames
+using LinearAlgebra
+using Printf
+using StaticArrays
+using Statistics
+using PyPlot
+using JSON
 
 include("defs.jl")
 include("annot_utils.jl")
@@ -34,9 +40,11 @@ function plot_depths(depths, title, ifig)
         gtp = get(plabel, Symbol(gt), gt)
         gtq = get(qlabel, Symbol(gt), gt)
         gtx = @sprintf("%s_q%02.0f", gt, 100 * pp)
+        println(gtx)
         if !(gtx in names(depths))
             continue
         end
+        println(gt)
 
         xx = depths[:, ["Normal_q50", gtx]]
         xx = xx[completecases(xx), :]
@@ -87,25 +95,29 @@ function plot_depths(depths, title, ifig)
 
         PyPlot.clf()
         PyPlot.title(title)
-        PyPlot.hist(xx[:, 2] - xx[:, 1], ec = "black", fc = "none")
+        wx = xx[:, 2] - xx[:, 1]
+        PyPlot.hist(wx, ec = "black", fc = "none")
         PyPlot.ylabel("Frequency", size = 15)
         PyPlot.xlabel(@sprintf("%s depth - normal depth", gtq), size = 15)
         PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+        open(@sprintf("depth_plot_data%03d.json", ifig), "w") do io
+            JSON.print(io, wx)
+        end
         ifig += 1
 
         PyPlot.clf()
         PyPlot.title(title)
-        PyPlot.hist(
-            (xx[:, 2] - xx[:, 1]) ./ abs.(xx[:, 1] + xx[:, 2]),
-            ec = "black",
-            fc = "none",
-        )
+        wx = (xx[:, 2] - xx[:, 1]) ./ abs.(xx[:, 1] + xx[:, 2])
+        PyPlot.hist(wx, ec = "black", fc = "none")
         PyPlot.ylabel("Frequency", size = 15)
         PyPlot.xlabel(
             @sprintf("(%s depth - normal depth) / |%s depth + normal depth|", gtq, gtq),
             size = 13,
         )
         PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+        open(@sprintf("depth_plot_data%03d.json", ifig), "w") do io
+            JSON.print(io, wx)
+        end
         ifig += 1
     end
 
@@ -127,6 +139,11 @@ function plot_depths(depths, title, ifig)
     PyPlot.boxplot(val, labels = lab)
     PyPlot.ylabel("Depth relative to normal", size = 15)
     PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+
+    pd = Dict(x=>y for (x,y) in zip(lab, val))
+    open(@sprintf("depth_plot_data%03d.json", ifig), "w") do io
+        JSON.print(io, pd)
+    end
     ifig += 1
 
     vm = mean.(val)
@@ -177,11 +194,8 @@ end
 
 function depth_summary(depths)
 
-    println(names(depths))
-
     out = open("depth_summary.txt", "w")
 
-    println(names(depths))
     n0 = length(unique(depths[:, :Scanner_ID]))
     n1 = length(unique(depths[:, :TPC_ID]))
     n2 = length(unique(depths[:, :Precise_ID]))
@@ -193,7 +207,6 @@ function depth_summary(depths)
 
     da = depths[:, :All_glomeruli_n]
     for g in glom_types
-        println(g)
         a = Symbol(@sprintf("%s_n", g))
         if string(a) in names(depths)
             single_summary(out, g, depths[:, a], da)
@@ -207,7 +220,7 @@ end
 function main(annots)
     out = open("depth.txt", "w")
 
-    ifig = 0
+    ifig = 1
     pp = 0.5
     gt0 = [@sprintf("%s_q%02.0f", g, 100 * pp) for g in glom_types]
     gt = [@sprintf("%s_q%02.0f", get(plabel, Symbol(g), g), 100 * pp) for g in glom_types]
@@ -223,7 +236,6 @@ function main(annots)
         write(outlog, @sprintf("%s\n", dn[jd]))
 
         depths = build_depths([0.5], depthfun, annots, glom_types)
-
         write(outlog, @sprintf("%d samples\n", size(depths, 1)))
         write(outlog, @sprintf("%d distinct subjects\n", length(unique(depths[:, :Scanner_ID]))))
 
@@ -249,7 +261,6 @@ function main(annots)
             depth_summary(depths)
         end
         crslt = clinical_analysis(depths, gt0)
-        println("crslt=", crslt)
 
         write(out, @sprintf("=== %s ===\n\n", dn[jd]))
         write(out, @sprintf("%d distinct samples in non-clinical depth analysis\n", n4))
@@ -271,10 +282,9 @@ end
 
 annotsx = glom_centroids(annots)
 write(outlog, @sprintf("%d samples\n", length(annotsx)))
-
 ifig = main(annotsx)
 
-f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
+f = [@sprintf("plots/%03d.pdf", j) for j = 1:ifig-1]
 c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=depth_plots.pdf $f`
 run(c)
 

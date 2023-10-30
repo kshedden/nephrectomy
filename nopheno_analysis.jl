@@ -2,6 +2,7 @@ using Printf, Statistics, IterTools, LinearAlgebra, PyPlot
 using DataFrames
 using Distributions
 using CSV
+using JSON
 
 rm("plots", force = true, recursive = true)
 mkdir("plots")
@@ -59,16 +60,19 @@ function plot_logr_dist(ifig)
         PyPlot.ylabel("Frequency", size = 15)
         PyPlot.title(@sprintf("p=%.2f", pp[k]))
         PyPlot.savefig(@sprintf("plots/%03d.pdf", ifig))
+        open(@sprintf("nopheno_plot_data%03d.json", ifig), "w") do io
+            JSON.print(io, pcq[:, k])
+        end
         ifig += 1
     end
     return ifig
 end
 
-ifig = 0
+ifig = 1
 ifig = compare_means(ifig)
 ifig = plot_logr_dist(ifig)
 
-f = [@sprintf("plots/%03d.pdf", j) for j = 0:ifig-1]
+f = [@sprintf("plots/%03d.pdf", j) for j = 1:ifig-1]
 c = `gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER -sOutputFile=nopheno_analysis.pdf $f`
 run(c)
 

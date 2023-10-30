@@ -3,8 +3,15 @@ Use Principal Components Regression (PCR) to relate clinical
 and spatial characteristics.
 =#
 
-using CSV, DataFrames, IterTools, LinearAlgebra, UnicodePlots
-using Distributions, Printf, PyPlot, Random
+using CSV
+using DataFrames
+using IterTools
+using LinearAlgebra
+using UnicodePlots
+using Distributions
+using Printf
+using PyPlot
+using Random
 
 rm("plots", force = true, recursive = true)
 mkdir("plots")
@@ -64,6 +71,8 @@ function analyze(vname, ifig, out; ncomp = 4)
         x[:, j] .-= mean(x[:, j])
     end
     u, s, v = svd(x)
+    pve = s.^2
+    pve ./= sum(pve)
 
     # Try to make the loadings mostly positive
     for j = 1:ncomp
@@ -78,7 +87,7 @@ function analyze(vname, ifig, out; ncomp = 4)
     c = Float64[length(y),]
     for j = 1:ncomp
         r, z, p = permcor(y, u[:, j])
-        push!(c, r, z, p)
+        push!(c, r, z, p, pve[j])
     end
 
     # Plot the PC loading vector
@@ -111,7 +120,7 @@ function main()
     ncomp = 4
     ifig = 0
     out = open("clinical_pcr_results.csv", "w")
-    head = "Variable,N," * join(["R$(j),Z$(j),P$(j)" for j = 1:ncomp], ",")
+    head = "Variable,N," * join(["R$(j),Z$(j),P$(j),PVE$(j)" for j = 1:ncomp], ",")
     write(out, head)
     write(out, "\n")
     for av in names(clin)[6:end]

@@ -23,7 +23,7 @@ mf = [
     x for x in names(morph)[5:end] if
     !occursin("column", lowercase(x)) && eltype(morph[:, x]) <: Number
 ]
-morphx = combine(groupby(morph, :Name_ID), [x => median for x in mf]...)
+morphx = combine(DataFrames.groupby(morph, :Name_ID), [x => median for x in mf]...)
 clin = leftjoin(clin, morphx, on = :Scanner_ID => :Name_ID)
 
 # Return a phenotype vector y for variable 'vname', and the corresponding

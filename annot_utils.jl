@@ -1,4 +1,7 @@
-using Serialization, CodecZlib, StaticArrays, Statistics
+using Serialization
+using CodecZlib
+using StaticArrays
+using Statistics
 
 include("defs.jl")
 
@@ -55,3 +58,18 @@ function condense(a)
 
     return b
 end
+
+function make_atypical(annots)
+    for id in keys(annots)
+        atyp = []
+        for (k, v) in annots[id]
+            if k in ["FGGS", "FSGS", "BSPC", "Ischemic", "Imploding", "Empty BC"]
+                push!(atyp, v...)
+            end
+        end
+        annots[id]["Atypical"] = atyp
+    end
+    return annots
+end
+
+annots = make_atypical(annots)
